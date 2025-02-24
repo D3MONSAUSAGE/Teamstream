@@ -4,13 +4,14 @@ class ChecklistsService {
   static const String checklistCollection = "checklists";
   static const String tasksCollection = "tasks";
 
-  /// 🔹 Fetch all checklists
-  static Future<List<Map<String, dynamic>>> fetchChecklists() async {
+  /// 🔹 Fetch all checklists, optionally filtering by a specific date.
+  static Future<List<Map<String, dynamic>>> fetchChecklists(
+      {DateTime? searchDate}) async {
     try {
       List<Map<String, dynamic>> fetchedData =
           await BaseService.fetchAll(checklistCollection);
 
-      return fetchedData.map((checklist) {
+      List<Map<String, dynamic>> checklists = fetchedData.map((checklist) {
         return {
           "id": checklist["id"],
           "title": checklist["title"] ?? "Untitled",
@@ -24,6 +25,19 @@ class ChecklistsService {
           "end_time": checklist["end_time"] ?? "",
         };
       }).toList();
+
+      if (searchDate != null) {
+        checklists = checklists.where((checklist) {
+          if (checklist['start_time'] == null || checklist['start_time'] == "")
+            return false;
+          DateTime checklistDate = DateTime.parse(checklist['start_time']);
+          return checklistDate.year == searchDate.year &&
+              checklistDate.month == searchDate.month &&
+              checklistDate.day == searchDate.day;
+        }).toList();
+      }
+
+      return checklists;
     } catch (e) {
       print("❌ Error fetching checklists: $e");
       return [];

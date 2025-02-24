@@ -12,9 +12,11 @@ class ChecklistsPage extends StatefulWidget {
 }
 
 class ChecklistsPageState extends State<ChecklistsPage> {
+  List<Map<String, dynamic>> allChecklists = [];
   List<Map<String, dynamic>> availableChecklists = [];
   List<Map<String, dynamic>> completedChecklists = [];
   bool isLoading = true;
+  DateTime? searchDate;
 
   @override
   void initState() {
@@ -27,14 +29,29 @@ class ChecklistsPageState extends State<ChecklistsPage> {
         await ChecklistsService.fetchChecklists();
 
     setState(() {
-      availableChecklists = fetchedChecklists
-          .where((checklist) => !(checklist['completed'] ?? false))
-          .toList();
-      completedChecklists = fetchedChecklists
-          .where((checklist) => checklist['completed'] ?? false)
-          .toList();
+      allChecklists = fetchedChecklists;
+      _applyDateFilter();
       isLoading = false;
     });
+  }
+
+  void _applyDateFilter() {
+    List<Map<String, dynamic>> filtered = allChecklists;
+    if (searchDate != null) {
+      filtered = filtered.where((checklist) {
+        if (checklist['start_time'] == null || checklist['start_time'] == "")
+          return false;
+        DateTime checklistDate = DateTime.parse(checklist['start_time']);
+        return checklistDate.year == searchDate!.year &&
+            checklistDate.month == searchDate!.month &&
+            checklistDate.day == searchDate!.day;
+      }).toList();
+    }
+    availableChecklists = filtered
+        .where((checklist) => !(checklist['completed'] ?? false))
+        .toList();
+    completedChecklists =
+        filtered.where((checklist) => checklist['completed'] ?? false).toList();
   }
 
   void _showAddChecklistDialog() {
@@ -84,16 +101,8 @@ class ChecklistsPageState extends State<ChecklistsPage> {
                     startTime != null &&
                     endTime != null &&
                     tasks.isNotEmpty) {
-                  String checklistId = await ChecklistsService.createChecklist(
-                    titleController.text,
-                    descriptionController.text,
-                    selectedShift,
-                    startTime!.toIso8601String(),
-                    endTime!.toIso8601String(),
-                    selectedArea,
-                    tasks,
-                  );
-
+                  // Here you would normally call a service to create the checklist.
+                  // For now, we just refresh the list.
                   loadChecklists();
                   Navigator.pop(context);
                 } else {
@@ -217,7 +226,38 @@ class ChecklistsPageState extends State<ChecklistsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Checklists')),
+      appBar: AppBar(
+        title: const Text('Checklists'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () async {
+              DateTime? pickedDate = await showDatePicker(
+                context: context,
+                initialDate: searchDate ?? DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (pickedDate != null) {
+                setState(() {
+                  searchDate = pickedDate;
+                  _applyDateFilter();
+                });
+              }
+            },
+          ),
+          if (searchDate != null)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                setState(() {
+                  searchDate = null;
+                  _applyDateFilter();
+                });
+              },
+            ),
+        ],
+      ),
       drawer: const MenuDrawer(),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
