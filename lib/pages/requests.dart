@@ -59,6 +59,8 @@ class RequestsPageState extends State<RequestsPage>
 // 🔹 NEW REQUEST FORM TAB
 // --------------------------------------------
 class NewRequestTab extends StatefulWidget {
+  const NewRequestTab({super.key});
+
   @override
   _NewRequestTabState createState() => _NewRequestTabState();
 }
@@ -167,6 +169,8 @@ class _NewRequestTabState extends State<NewRequestTab> {
 // 🔹 MY REQUESTS TAB
 // --------------------------------------------
 class MyRequestsTab extends StatefulWidget {
+  const MyRequestsTab({super.key});
+
   @override
   _MyRequestsTabState createState() => _MyRequestsTabState();
 }
@@ -228,6 +232,8 @@ class _MyRequestsTabState extends State<MyRequestsTab> {
 // 🔹 REQUEST HISTORY TAB
 // --------------------------------------------
 class RequestHistoryTab extends StatelessWidget {
+  const RequestHistoryTab({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Center(

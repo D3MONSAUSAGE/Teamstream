@@ -59,6 +59,8 @@ class SchedulesPageState extends State<SchedulesPage>
 
 /// 🔹 Assigned Schedules Tab
 class AssignedSchedulesTab extends StatefulWidget {
+  const AssignedSchedulesTab({super.key});
+
   @override
   _AssignedSchedulesTabState createState() => _AssignedSchedulesTabState();
 }
@@ -150,6 +152,8 @@ class _AssignedSchedulesTabState extends State<AssignedSchedulesTab> {
 
 /// 🔹 Upcoming Schedules Tab
 class UpcomingSchedulesTab extends StatelessWidget {
+  const UpcomingSchedulesTab({super.key});
+
   @override
   Widget build(BuildContext context) {
     return const Center(
@@ -160,6 +164,8 @@ class UpcomingSchedulesTab extends StatelessWidget {
 
 /// 🔹 Past Schedules Tab
 class PastSchedulesTab extends StatelessWidget {
+  const PastSchedulesTab({super.key});
+
   @override
   Widget build(BuildContext context) {
     return const Center(
@@ -170,6 +176,8 @@ class PastSchedulesTab extends StatelessWidget {
 
 /// 🔹 Shift Drop Requests Tab
 class ShiftDropRequestsTab extends StatefulWidget {
+  const ShiftDropRequestsTab({super.key});
+
   @override
   _ShiftDropRequestsTabState createState() => _ShiftDropRequestsTabState();
 }

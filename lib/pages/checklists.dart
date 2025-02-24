@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:teamstream/services/pocketbase_service.dart';
 import 'package:intl/intl.dart';
+import 'package:teamstream/services/pocketbase/checklists_service.dart';
 import 'package:teamstream/widgets/menu_drawer.dart';
+import 'package:teamstream/pages/execute_checklist.dart';
 
 class ChecklistsPage extends StatefulWidget {
   const ChecklistsPage({super.key});
@@ -12,9 +13,8 @@ class ChecklistsPage extends StatefulWidget {
 
 class ChecklistsPageState extends State<ChecklistsPage> {
   List<Map<String, dynamic>> availableChecklists = [];
-  List<Map<String, dynamic>> executedChecklists = [];
+  List<Map<String, dynamic>> completedChecklists = [];
   bool isLoading = true;
-  DateTime selectedDate = DateTime.now();
 
   @override
   void initState() {
@@ -24,41 +24,28 @@ class ChecklistsPageState extends State<ChecklistsPage> {
 
   void loadChecklists() async {
     List<Map<String, dynamic>> fetchedChecklists =
-        await PocketBaseService.fetchChecklists();
+        await ChecklistsService.fetchChecklists();
+
     setState(() {
       availableChecklists = fetchedChecklists
           .where((checklist) => !(checklist['completed'] ?? false))
           .toList();
-      executedChecklists = fetchedChecklists
+      completedChecklists = fetchedChecklists
           .where((checklist) => checklist['completed'] ?? false)
           .toList();
       isLoading = false;
     });
   }
 
-  void selectDate(BuildContext context) async {
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2023),
-      lastDate: DateTime.now(),
-    );
-    if (pickedDate != null && pickedDate != selectedDate) {
-      setState(() {
-        selectedDate = pickedDate;
-      });
-    }
-  }
-
   void _showAddChecklistDialog() {
     TextEditingController titleController = TextEditingController();
     TextEditingController descriptionController = TextEditingController();
-    TextEditingController taskController = TextEditingController();
     List<String> shifts = ["Morning", "Afternoon", "Evening"];
     List<String> areas = ["Kitchen", "Customer Service"];
     String selectedShift = shifts.first;
     String selectedArea = areas.first;
     List<String> tasks = [];
+    TextEditingController taskController = TextEditingController();
     DateTime? startTime;
     DateTime? endTime;
 
@@ -70,153 +57,19 @@ class ChecklistsPageState extends State<ChecklistsPage> {
           content: SingleChildScrollView(
             child: Column(
               children: [
-                // Form for checklist details
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextFormField(
-                    controller: titleController,
-                    decoration: InputDecoration(
-                      labelText: "Checklist Title",
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextFormField(
-                    controller: descriptionController,
-                    decoration: InputDecoration(
-                      labelText: "Description",
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: DropdownButtonFormField<String>(
-                    value: selectedShift,
-                    decoration: InputDecoration(
-                      labelText: "Select Shift",
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                    isExpanded: true,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedShift = value!;
-                      });
-                    },
-                    items: shifts.map((shift) {
-                      return DropdownMenuItem(value: shift, child: Text(shift));
-                    }).toList(),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: DropdownButtonFormField<String>(
-                    value: selectedArea,
-                    decoration: InputDecoration(
-                      labelText: "Select Area",
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                    isExpanded: true,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedArea = value!;
-                      });
-                    },
-                    items: areas.map((area) {
-                      return DropdownMenuItem(value: area, child: Text(area));
-                    }).toList(),
-                  ),
-                ),
-                // Time Selection
-                ListTile(
-                  title: Text(startTime == null
-                      ? "Select Start Time"
-                      : DateFormat.jm().format(startTime!)),
-                  trailing: const Icon(Icons.access_time),
-                  onTap: () async {
-                    TimeOfDay? picked = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.now(),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        startTime = DateTime(
-                            selectedDate.year,
-                            selectedDate.month,
-                            selectedDate.day,
-                            picked.hour,
-                            picked.minute);
-                      });
-                    }
-                  },
-                ),
-                ListTile(
-                  title: Text(endTime == null
-                      ? "Select End Time"
-                      : DateFormat.jm().format(endTime!)),
-                  trailing: const Icon(Icons.access_time),
-                  onTap: () async {
-                    TimeOfDay? picked = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.now(),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        endTime = DateTime(
-                            selectedDate.year,
-                            selectedDate.month,
-                            selectedDate.day,
-                            picked.hour,
-                            picked.minute);
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 10),
-                // Task Input
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextFormField(
-                    controller: taskController,
-                    decoration: InputDecoration(
-                      labelText: "Enter Task",
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.add),
-                        onPressed: () {
-                          if (taskController.text.isNotEmpty) {
-                            setState(() {
-                              tasks.add(taskController.text);
-                            });
-                            taskController.clear();
-                          }
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                  ),
-                ),
-                // Task List
-                Wrap(
-                  spacing: 8,
-                  children: tasks
-                      .map((task) => Chip(
-                            label: Text(task),
-                            deleteIcon: const Icon(Icons.close),
-                            onDeleted: () {
-                              setState(() {
-                                tasks.remove(task);
-                              });
-                            },
-                          ))
-                      .toList(),
-                ),
+                _buildTextField("Checklist Title", titleController),
+                _buildTextField("Description", descriptionController),
+                _buildDropdown("Select Shift", shifts, selectedShift,
+                    (value) => setState(() => selectedShift = value)),
+                _buildDropdown("Select Area", areas, selectedArea,
+                    (value) => setState(() => selectedArea = value)),
+                _buildTimePicker("Select Start Time", startTime, (picked) {
+                  setState(() => startTime = picked);
+                }),
+                _buildTimePicker("Select End Time", endTime, (picked) {
+                  setState(() => endTime = picked);
+                }),
+                _buildTaskInput(tasks, taskController, setState),
               ],
             ),
           ),
@@ -226,24 +79,21 @@ class ChecklistsPageState extends State<ChecklistsPage> {
               child: const Text("Cancel"),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-              ),
               onPressed: () async {
                 if (titleController.text.isNotEmpty &&
                     startTime != null &&
                     endTime != null &&
                     tasks.isNotEmpty) {
-                  await PocketBaseService.createChecklist(
+                  String checklistId = await ChecklistsService.createChecklist(
                     titleController.text,
                     descriptionController.text,
                     selectedShift,
-                    DateFormat('yyyy-MM-dd HH:mm:ss').format(startTime!),
-                    DateFormat('yyyy-MM-dd HH:mm:ss').format(endTime!),
-                    tasks,
+                    startTime!.toIso8601String(),
+                    endTime!.toIso8601String(),
                     selectedArea,
+                    tasks,
                   );
+
                   loadChecklists();
                   Navigator.pop(context);
                 } else {
@@ -261,41 +111,168 @@ class ChecklistsPageState extends State<ChecklistsPage> {
     );
   }
 
+  Widget _buildTextField(String label, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown(
+    String label,
+    List<String> options,
+    String selectedValue,
+    Function(String) onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: DropdownButtonFormField<String>(
+        value: selectedValue,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+        ),
+        isExpanded: true,
+        onChanged: (value) => onChanged(value!),
+        items: options
+            .map((option) =>
+                DropdownMenuItem(value: option, child: Text(option)))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildTimePicker(
+    String label,
+    DateTime? selectedTime,
+    Function(DateTime) onTimePicked,
+  ) {
+    return ListTile(
+      title: Text(
+          selectedTime == null ? label : DateFormat.jm().format(selectedTime)),
+      trailing: const Icon(Icons.access_time),
+      onTap: () async {
+        TimeOfDay? picked = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.now(),
+        );
+        if (picked != null) {
+          DateTime now = DateTime.now();
+          DateTime finalTime = DateTime(
+              now.year, now.month, now.day, picked.hour, picked.minute);
+          onTimePicked(finalTime);
+        }
+      },
+    );
+  }
+
+  Widget _buildTaskInput(List<String> tasks, TextEditingController controller,
+      Function(Function()) setState) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextFormField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: "Enter Task",
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    setState(() {
+                      tasks.add(controller.text);
+                    });
+                    controller.clear();
+                  }
+                },
+              ),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          children: tasks
+              .map((task) => Chip(
+                    label: Text(task),
+                    deleteIcon: const Icon(Icons.close),
+                    onDeleted: () => setState(() {
+                      tasks.remove(task);
+                    }),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checklists'),
-      ),
+      appBar: AppBar(title: const Text('Checklists')),
       drawer: const MenuDrawer(),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              padding: const EdgeInsets.all(10),
               children: [
-                ListTile(
-                  title: const Text('Available Checklists'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: _showAddChecklistDialog,
-                  ),
-                ),
-                ...availableChecklists.map((checklist) => ListTile(
-                      title: Text(checklist['title']),
-                      subtitle: Text(checklist['description']),
-                    )),
-                const Divider(),
-                ListTile(
-                  title: const Text('Executed Checklists'),
-                ),
-                ...executedChecklists.map((checklist) => ListTile(
-                      title: Text(checklist['title']),
-                      subtitle: Text(checklist['description']),
-                    )),
+                _buildChecklistSection(
+                    "Available Checklists", availableChecklists),
+                const SizedBox(height: 20),
+                _buildChecklistSection(
+                    "Completed Checklists", completedChecklists),
               ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddChecklistDialog,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildChecklistSection(
+      String title, List<Map<String, dynamic>> checklists) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        ...checklists.map((checklist) => _buildChecklistCard(checklist)),
+      ],
+    );
+  }
+
+  Widget _buildChecklistCard(Map<String, dynamic> checklist) {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        title: Text(checklist['title'],
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(checklist['description'] ?? "No description available"),
+        trailing: ElevatedButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ExecuteChecklistPage(
+                  checklistId: checklist['id'],
+                ),
+              ),
+            );
+          },
+          child: const Text("Execute"),
+        ),
       ),
     );
   }
