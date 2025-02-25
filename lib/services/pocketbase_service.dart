@@ -1,98 +1,139 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:teamstream/services/pocketbase/auth_service.dart';
 
 class PocketBaseService {
-  static final PocketBase pb =
-      PocketBase('http://127.0.0.1:8090'); // ✅ Update with your PocketBase URL
+  static final PocketBase pb = PocketBase('http://127.0.0.1:8090');
 
-  /// 🔹 Get the Current Logged-in User ID
-  static Future<String> getCurrentUserId() async {
-    return pb.authStore.model.id;
-  }
-
-  /// 🔹 Fetch Current User Data
-  static Future<Map<String, dynamic>> getCurrentUser() async {
-    try {
-      final userId = await getCurrentUserId();
-      final record = await pb.collection('users').getOne(userId);
-      return record.toJson();
-    } catch (e) {
-      print("Error fetching user data: $e");
-      throw Exception("Failed to fetch user data.");
-    }
-  }
-
-  /// 🔹 User Login
-  static Future<bool> login(String email, String password) async {
+  /// 🔹 Authenticate and log in the user, returning the user ID
+  static Future<String?> login(String email, String password) async {
     try {
       final authResponse =
           await pb.collection('users').authWithPassword(email, password);
-      return authResponse.token.isNotEmpty;
+
+      String userId = authResponse.record.id;
+      AuthService.setLoggedInUser(userId);
+      print("✅ Successfully logged in. User ID: $userId");
+      return userId;
     } catch (e) {
-      print("Login failed: $e");
+      print("❌ Login failed: $e");
+      return null;
+    }
+  }
+
+  /// 🔹 Log out the user
+  static void logout() {
+    pb.authStore.clear();
+    AuthService.clearLoggedInUser();
+    print("✅ User logged out.");
+  }
+
+  /// 🔹 Get the Logged-in User ID
+  /// 🔹 Get the Logged-in User ID (With Validation)
+  static String? getLoggedInUserId() {
+    String? userId = AuthService.getLoggedInUserId();
+    if (userId == null || userId.isEmpty) {
+      print("❌ No logged-in user found.");
+      return null;
+    }
+    return userId;
+  }
+
+  /// 🔹 Submit Employee Request (Handles all request types)
+  static Future<bool> submitRequest({
+    required String requestType,
+    required String description,
+    required String urgency,
+    bool isRecurring = false,
+    String? recurringType,
+    DateTime? meetingDate,
+    TimeOfDay? meetingStart,
+    TimeOfDay? meetingEnd,
+    bool isTimeOpen = false,
+    FilePickerResult? attachment,
+  }) async {
+    try {
+      String? userId = getLoggedInUserId();
+      if (userId == null) {
+        throw Exception("❌ Cannot submit request: User ID is null.");
+      }
+
+      // ✅ Prepare request data
+      Map<String, dynamic> requestData = {
+        "request_type": requestType,
+        "description": description,
+        "urgency": urgency,
+        "status": "Pending",
+        "submitted_by": userId,
+        "is_recurring": isRecurring,
+        "recurring_type": isRecurring ? recurringType : null,
+        "next_occurrence": isRecurring
+            ? DateTime.now().add(Duration(
+                days: recurringType == "Daily"
+                    ? 1
+                    : recurringType == "Weekly"
+                        ? 7
+                        : 30))
+            : null,
+        "is_time_open": isTimeOpen, // ✅ Store if the meeting time is open
+      };
+
+      // ✅ Only add meeting-related fields if it's a meeting request
+      if (requestType == "Meeting" && !isTimeOpen) {
+        requestData["meeting_date"] = meetingDate?.toIso8601String();
+        requestData["meeting_start"] = meetingStart != null
+            ? "${meetingStart.hour.toString().padLeft(2, '0')}:${meetingStart.minute.toString().padLeft(2, '0')}"
+            : null;
+        requestData["meeting_end"] = meetingEnd != null
+            ? "${meetingEnd.hour.toString().padLeft(2, '0')}:${meetingEnd.minute.toString().padLeft(2, '0')}"
+            : null;
+      }
+
+      // ✅ Submit the request
+      RecordModel requestRecord =
+          await pb.collection('requests').create(body: requestData);
+      String requestId = requestRecord.id;
+
+      // ✅ Handle attachments
+      if (attachment != null) {
+        Uint8List fileBytes = attachment.files.single.bytes!;
+        String fileName = attachment.files.single.name;
+
+        final multipartFile = http.MultipartFile.fromBytes(
+          'attachment',
+          fileBytes,
+          filename: fileName,
+        );
+
+        await pb
+            .collection('requests')
+            .update(requestId, files: [multipartFile]);
+      }
+
+      print("✅ Request submitted successfully: $requestId");
+      return true;
+    } catch (e) {
+      print("❌ Error submitting request: $e");
       return false;
     }
   }
 
-  /// 🔹 Fetch Checklists
-  /// 🔹 Fetch Active Checklists
-  static Future<List<Map<String, dynamic>>> fetchChecklists() async {
+  /// 🔹 Fetch Requests (User & Admin)
+  static Future<List<Map<String, dynamic>>> fetchRequests(
+      {bool isAdmin = false}) async {
     try {
-      final records = await pb.collection('checklists').getFullList(
-            filter: "completed = false", // ✅ Only fetch incomplete checklists
-          );
+      String? userId = getLoggedInUserId();
+      if (userId == null) throw Exception("User ID is null");
+
+      final filter = isAdmin ? "" : "submitted_by = '$userId'";
+      final records =
+          await pb.collection('requests').getFullList(filter: filter);
       return records.map((record) => record.toJson()).toList();
     } catch (e) {
-      print("❌ Error fetching checklists: $e");
-      return [];
-    }
-  }
-
-  /// 🔹 Submit Employee Request
-  static Future<void> submitRequest({
-    required String requestType,
-    required String reason,
-    required DateTime date,
-  }) async {
-    try {
-      String userId = await getCurrentUserId();
-      await pb.collection('requests').create(body: {
-        "employee_id": userId,
-        "request_type": requestType,
-        "reason": reason,
-        "date": date.toIso8601String(),
-        "status": "Pending",
-      });
-    } catch (e) {
-      print("Error submitting request: $e");
-      throw Exception("Failed to submit request.");
-    }
-  }
-
-  /// 🔹 Fetch User Requests
-  static Future<List<Map<String, dynamic>>> fetchMyRequests() async {
-    try {
-      String userId = await getCurrentUserId();
-      final records = await pb.collection('requests').getFullList(
-            filter: "employee_id = '$userId'",
-          );
-      return records.map((record) => record.toJson()).toList();
-    } catch (e) {
-      print("Error fetching user requests: $e");
-      return [];
-    }
-  }
-
-  /// 🔹 Fetch All Requests (For Managers/Admins)
-  static Future<List<Map<String, dynamic>>> fetchAllRequests() async {
-    try {
-      final records = await pb.collection('requests').getFullList();
-      return records.map((record) => record.toJson()).toList();
-    } catch (e) {
-      print("Error fetching all requests: $e");
+      print("❌ Error fetching requests: $e");
       return [];
     }
   }
@@ -101,11 +142,12 @@ class PocketBaseService {
   static Future<void> updateRequestStatus(
       String requestId, String status) async {
     try {
-      await pb.collection('requests').update(requestId, body: {
-        "status": status,
-      });
+      await pb
+          .collection('requests')
+          .update(requestId, body: {"status": status});
+      print("✅ Request $requestId updated to $status");
     } catch (e) {
-      print("Error updating request status: $e");
+      print("❌ Error updating request status: $e");
     }
   }
 
@@ -115,168 +157,18 @@ class PocketBaseService {
       final records = await pb.collection('schedules').getFullList();
       return records.map((record) => record.toJson()).toList();
     } catch (e) {
-      print("Error fetching assigned schedules: $e");
+      print("❌ Error fetching assigned schedules: $e");
       return [];
     }
   }
 
-  /// 🔹 Fetch Shift Drop Requests
-  static Future<List<Map<String, dynamic>>> fetchShiftDropRequests() async {
-    try {
-      final records = await pb.collection('shift_drops').getFullList(
-            filter: "status = 'Available'",
-          );
-      return records.map((record) => record.toJson()).toList();
-    } catch (e) {
-      print("Error fetching shift drop requests: $e");
-      return [];
-    }
-  }
-
-  /// 🔹 Drop a Shift
-  static Future<void> dropShift(String position, DateTime date,
-      DateTime startTime, DateTime endTime) async {
-    try {
-      String userId = await getCurrentUserId();
-      await pb.collection('shift_drops').create(body: {
-        "employee_id": userId,
-        "position": position,
-        "date": date.toIso8601String(),
-        "start_time": startTime.toIso8601String(),
-        "end_time": endTime.toIso8601String(),
-        "status": "Available",
-        "claimed_by": null,
-      });
-    } catch (e) {
-      print("Error dropping shift: $e");
-    }
-  }
-
-  /// 🔹 Claim a Shift
-  static Future<void> claimShift(String shiftId) async {
-    try {
-      String userId = await getCurrentUserId();
-      await pb.collection('shift_drops').update(shiftId, body: {
-        "status": "Claimed",
-        "claimed_by": userId,
-      });
-    } catch (e) {
-      print("Error claiming shift: $e");
-    }
-  }
-
-  /// 🔹 Fetch Claimed Shifts
-  static Future<List<Map<String, dynamic>>> fetchClaimedShifts() async {
-    try {
-      String userId = await getCurrentUserId();
-      final records = await pb.collection('shift_drops').getFullList(
-            filter: "claimed_by = '$userId'",
-          );
-      return records.map((record) => record.toJson()).toList();
-    } catch (e) {
-      print("Error fetching claimed shifts: $e");
-      return [];
-    }
-  }
-
-  /// 🔹 Fetch Invoices
-  static Future<List<Map<String, dynamic>>> fetchInvoices() async {
-    try {
-      final records = await pb.collection('invoices').getFullList();
-      return records.map((record) => record.toJson()).toList();
-    } catch (e) {
-      print("Error fetching invoices: $e");
-      return [];
-    }
-  }
-
-  /// 🔹 Upload Invoice
-  static Future<bool> uploadInvoice(PlatformFile file) async {
-    try {
-      await pb.collection('invoices').create(
-        body: {
-          "vendor_name": "Unknown Vendor",
-          "date": DateTime.now().toIso8601String(),
-        },
-        files: [
-          http.MultipartFile.fromBytes('file', file.bytes!,
-              filename: file.name),
-        ],
-      );
-      return true;
-    } catch (e) {
-      print("Error uploading invoice: $e");
-      return false;
-    }
-  }
-
-  /// 🔹 Download Invoice
-  static void downloadInvoice(String fileUrl) {
-    try {
-      launchUrl(Uri.parse(fileUrl));
-    } catch (e) {
-      print("Error downloading invoice: $e");
-    }
-  }
-
-  /// 🔹 Submit Checklist Data
-  /// 🔹 Submit Checklist Data
-  static Future<void> submitChecklistData(
-      String checklistId, List<Map<String, dynamic>> tasks) async {
-    try {
-      // Convert tasks list to JSON format
-      List<Map<String, dynamic>> formattedTasks = tasks.map((task) {
-        return {"name": task["name"], "completed": task["completed"] ?? false};
-      }).toList();
-
-      await pb.collection('checklists').update(checklistId, body: {
-        "tasks": formattedTasks, // ✅ Save updated tasks
-        "completed": true, // ✅ Mark checklist as completed
-        "executed_at":
-            DateTime.now().toIso8601String() // ✅ Store execution timestamp
-      });
-
-      print("✅ Checklist submitted successfully!");
-    } catch (e) {
-      print("❌ Error submitting checklist: $e");
-      throw Exception("Failed to submit checklist.");
-    }
-  }
-
-  /// 🔹 Update Profile Picture (Fixed)
-  static Future<void> updateProfilePicture(File file) async {
-    try {
-      String userId = await getCurrentUserId();
-      final multipartFile =
-          await http.MultipartFile.fromPath('file', file.path);
-      await pb.collection('users').update(userId, files: [multipartFile]);
-    } catch (e) {
-      print("Error updating profile picture: $e");
-    }
-  }
-
-  /// 🔹 Update User Profile (Fixed)
-  static Future<void> updateUserProfile(
-      {required String name, required String email}) async {
-    try {
-      String userId = await getCurrentUserId();
-      await pb.collection('users').update(userId, body: {
-        "name": name,
-        "email": email,
-      });
-    } catch (e) {
-      print("Error updating user profile: $e");
-    }
-  }
-
-  /// 🔹 Create a Checklist
   /// 🔹 Create a Checklist
   static Future<void> createChecklist(
     String title,
     String description,
     String shift,
-    String startTime, // ✅ Now a String
-    String endTime, // ✅ Now a String
+    String startTime,
+    String endTime,
     List<String> tasks,
     String area,
   ) async {
@@ -285,8 +177,8 @@ class PocketBaseService {
         "title": title,
         "description": description,
         "shift": shift,
-        "start_time": startTime, // ✅ Directly stores as String
-        "end_time": endTime, // ✅ Directly stores as String
+        "start_time": startTime,
+        "end_time": endTime,
         "tasks": tasks,
         "area": area,
         "completed": false,
@@ -300,7 +192,6 @@ class PocketBaseService {
     }
   }
 
-  /// 🔹 Fetch All Employees
   /// 🔹 Fetch All Employees
   static Future<List<Map<String, dynamic>>> fetchEmployees() async {
     try {

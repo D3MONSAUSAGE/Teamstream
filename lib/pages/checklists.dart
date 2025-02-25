@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:teamstream/services/pocketbase/checklists_service.dart';
 import 'package:teamstream/widgets/menu_drawer.dart';
 import 'package:teamstream/pages/execute_checklist.dart';
+import 'package:teamstream/pages/revise_checklist.dart';
 
 class ChecklistsPage extends StatefulWidget {
   const ChecklistsPage({super.key});
@@ -16,7 +17,10 @@ class ChecklistsPageState extends State<ChecklistsPage> {
   List<Map<String, dynamic>> availableChecklists = [];
   List<Map<String, dynamic>> completedChecklists = [];
   bool isLoading = true;
-  DateTime? searchDate;
+
+  // Date range filters
+  DateTime? searchStartDate;
+  DateTime? searchEndDate;
 
   @override
   void initState() {
@@ -37,16 +41,29 @@ class ChecklistsPageState extends State<ChecklistsPage> {
 
   void _applyDateFilter() {
     List<Map<String, dynamic>> filtered = allChecklists;
-    if (searchDate != null) {
+
+    if (searchStartDate != null) {
       filtered = filtered.where((checklist) {
         if (checklist['start_time'] == null || checklist['start_time'] == "")
           return false;
         DateTime checklistDate = DateTime.parse(checklist['start_time']);
-        return checklistDate.year == searchDate!.year &&
-            checklistDate.month == searchDate!.month &&
-            checklistDate.day == searchDate!.day;
+        // Include dates that are on or after the selected start date
+        return checklistDate.isAtSameMomentAs(searchStartDate!) ||
+            checklistDate.isAfter(searchStartDate!);
       }).toList();
     }
+
+    if (searchEndDate != null) {
+      filtered = filtered.where((checklist) {
+        if (checklist['start_time'] == null || checklist['start_time'] == "")
+          return false;
+        DateTime checklistDate = DateTime.parse(checklist['start_time']);
+        // Include dates that are on or before the selected end date
+        return checklistDate.isAtSameMomentAs(searchEndDate!) ||
+            checklistDate.isBefore(searchEndDate!);
+      }).toList();
+    }
+
     availableChecklists = filtered
         .where((checklist) => !(checklist['completed'] ?? false))
         .toList();
@@ -55,6 +72,7 @@ class ChecklistsPageState extends State<ChecklistsPage> {
   }
 
   void _showAddChecklistDialog() {
+    final _formKey = GlobalKey<FormState>();
     TextEditingController titleController = TextEditingController();
     TextEditingController descriptionController = TextEditingController();
     List<String> shifts = ["Morning", "Afternoon", "Evening"];
@@ -72,22 +90,180 @@ class ChecklistsPageState extends State<ChecklistsPage> {
         builder: (context, setState) => AlertDialog(
           title: const Text("Create New Checklist"),
           content: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildTextField("Checklist Title", titleController),
-                _buildTextField("Description", descriptionController),
-                _buildDropdown("Select Shift", shifts, selectedShift,
-                    (value) => setState(() => selectedShift = value)),
-                _buildDropdown("Select Area", areas, selectedArea,
-                    (value) => setState(() => selectedArea = value)),
-                _buildTimePicker("Select Start Time", startTime, (picked) {
-                  setState(() => startTime = picked);
-                }),
-                _buildTimePicker("Select End Time", endTime, (picked) {
-                  setState(() => endTime = picked);
-                }),
-                _buildTaskInput(tasks, taskController, setState),
-              ],
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Title Field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: TextFormField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: "Checklist Title",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.title),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Please enter a title";
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  // Description Field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: TextFormField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: "Description",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.description),
+                      ),
+                    ),
+                  ),
+                  // Shift Dropdown
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: DropdownButtonFormField<String>(
+                      value: selectedShift,
+                      decoration: const InputDecoration(
+                        labelText: "Select Shift",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.schedule),
+                      ),
+                      items: shifts
+                          .map((shift) => DropdownMenuItem(
+                                value: shift,
+                                child: Text(shift),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedShift = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  // Area Dropdown
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: DropdownButtonFormField<String>(
+                      value: selectedArea,
+                      decoration: const InputDecoration(
+                        labelText: "Select Area",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      items: areas
+                          .map((area) => DropdownMenuItem(
+                                value: area,
+                                child: Text(area),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedArea = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  // Start Time Picker
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.access_time),
+                      title: Text(
+                        startTime == null
+                            ? "Select Start Time"
+                            : DateFormat.jm().format(startTime!),
+                      ),
+                      onTap: () async {
+                        TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          DateTime now = DateTime.now();
+                          setState(() {
+                            startTime = DateTime(now.year, now.month, now.day,
+                                picked.hour, picked.minute);
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  // End Time Picker
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.access_time),
+                      title: Text(
+                        endTime == null
+                            ? "Select End Time"
+                            : DateFormat.jm().format(endTime!),
+                      ),
+                      onTap: () async {
+                        TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          DateTime now = DateTime.now();
+                          setState(() {
+                            endTime = DateTime(now.year, now.month, now.day,
+                                picked.hour, picked.minute);
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  // Task Input Field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: TextFormField(
+                      controller: taskController,
+                      decoration: InputDecoration(
+                        labelText: "Enter Task",
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () {
+                            if (taskController.text.isNotEmpty) {
+                              setState(() {
+                                tasks.add(taskController.text);
+                              });
+                              taskController.clear();
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Display Added Tasks
+                  if (tasks.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: tasks
+                          .map(
+                            (task) => Chip(
+                              label: Text(task),
+                              onDeleted: () {
+                                setState(() {
+                                  tasks.remove(task);
+                                });
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -97,14 +273,27 @@ class ChecklistsPageState extends State<ChecklistsPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (titleController.text.isNotEmpty &&
+                if (_formKey.currentState!.validate() &&
                     startTime != null &&
                     endTime != null &&
                     tasks.isNotEmpty) {
-                  // Here you would normally call a service to create the checklist.
-                  // For now, we just refresh the list.
-                  loadChecklists();
-                  Navigator.pop(context);
+                  try {
+                    await ChecklistsService.createChecklist(
+                      titleController.text,
+                      descriptionController.text,
+                      selectedShift,
+                      startTime!.toIso8601String(),
+                      endTime!.toIso8601String(),
+                      selectedArea,
+                      tasks,
+                    );
+                    loadChecklists();
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error creating checklist: $e")),
+                    );
+                  }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -229,29 +418,53 @@ class ChecklistsPageState extends State<ChecklistsPage> {
       appBar: AppBar(
         title: const Text('Checklists'),
         actions: [
+          // Date range filter: Start Date Picker
           IconButton(
-            icon: const Icon(Icons.calendar_today),
+            icon: const Icon(Icons.date_range),
+            tooltip: "Select Start Date",
             onPressed: () async {
-              DateTime? pickedDate = await showDatePicker(
+              DateTime? pickedStart = await showDatePicker(
                 context: context,
-                initialDate: searchDate ?? DateTime.now(),
+                initialDate: searchStartDate ?? DateTime.now(),
                 firstDate: DateTime(2000),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
-              if (pickedDate != null) {
+              if (pickedStart != null) {
                 setState(() {
-                  searchDate = pickedDate;
+                  searchStartDate = pickedStart;
                   _applyDateFilter();
                 });
               }
             },
           ),
-          if (searchDate != null)
+          // Date range filter: End Date Picker
+          IconButton(
+            icon: const Icon(Icons.event),
+            tooltip: "Select End Date",
+            onPressed: () async {
+              DateTime? pickedEnd = await showDatePicker(
+                context: context,
+                initialDate: searchEndDate ?? DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (pickedEnd != null) {
+                setState(() {
+                  searchEndDate = pickedEnd;
+                  _applyDateFilter();
+                });
+              }
+            },
+          ),
+          // Clear the date range filter if either is set
+          if (searchStartDate != null || searchEndDate != null)
             IconButton(
               icon: const Icon(Icons.clear),
+              tooltip: "Clear Date Range",
               onPressed: () {
                 setState(() {
-                  searchDate = null;
+                  searchStartDate = null;
+                  searchEndDate = null;
                   _applyDateFilter();
                 });
               },
@@ -292,6 +505,8 @@ class ChecklistsPageState extends State<ChecklistsPage> {
   }
 
   Widget _buildChecklistCard(Map<String, dynamic> checklist) {
+    bool isCompleted = checklist['completed'] ?? false;
+    bool isVerified = checklist['verified_by_manager'] ?? false;
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -300,20 +515,65 @@ class ChecklistsPageState extends State<ChecklistsPage> {
         title: Text(checklist['title'],
             style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(checklist['description'] ?? "No description available"),
-        trailing: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ExecuteChecklistPage(
-                  checklistId: checklist['id'],
-                ),
-              ),
-            );
-          },
-          child: const Text("Execute"),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isCompleted && isVerified)
+              const Icon(Icons.check_circle, color: Colors.green),
+            ElevatedButton(
+              onPressed: () {
+                if (!isCompleted) {
+                  // Check if current time is within the execution window.
+                  if (!_isWithinExecutionWindow(checklist)) {
+                    String start = checklist['start_time'];
+                    String end = checklist['end_time'];
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            "This checklist can only be executed between $start and $end"),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ExecuteChecklistPage(
+                        checklistId: checklist['id'],
+                      ),
+                    ),
+                  );
+                } else {
+                  if (!isVerified) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ReviseChecklistPage(
+                          checklistId: checklist['id'],
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: Text(isCompleted
+                  ? (isVerified ? "Verified" : "Revise")
+                  : "Execute"),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  bool _isWithinExecutionWindow(Map<String, dynamic> checklist) {
+    try {
+      DateTime start = DateTime.parse(checklist['start_time']);
+      DateTime end = DateTime.parse(checklist['end_time']);
+      DateTime now = DateTime.now();
+      return now.isAfter(start) && now.isBefore(end);
+    } catch (e) {
+      return false;
+    }
   }
 }

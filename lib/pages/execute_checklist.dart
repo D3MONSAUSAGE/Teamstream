@@ -1,11 +1,16 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:teamstream/services/pocketbase/checklists_service.dart';
 import 'package:teamstream/services/pocketbase/tasks_service.dart';
 
 class ExecuteChecklistPage extends StatefulWidget {
   final String checklistId;
-
-  const ExecuteChecklistPage({super.key, required this.checklistId});
+  const ExecuteChecklistPage({Key? key, required this.checklistId})
+      : super(key: key);
 
   @override
   ExecuteChecklistPageState createState() => ExecuteChecklistPageState();
@@ -15,6 +20,7 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
   Map<String, dynamic>? checklist;
   List<Map<String, dynamic>> tasks = [];
   bool isLoading = true;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -25,25 +31,22 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
   /// 🔹 Fetch checklist and associated tasks
   void loadChecklist() async {
     try {
-      print("📥 Fetching Checklist ID: ${widget.checklistId}");
+      print("🔹 Fetching Checklist ID: ${widget.checklistId}");
 
       Map<String, dynamic> fetchedChecklist =
           await ChecklistsService.fetchChecklistById(widget.checklistId);
-
       List<Map<String, dynamic>> fetchedTasks =
           await TasksService.fetchTasksByChecklistId(widget.checklistId);
 
-      setState(() {
-        checklist = fetchedChecklist;
-        tasks = fetchedTasks;
-        isLoading = false;
-      });
+      print("✅ Loaded Checklist: $fetchedChecklist");
+      print("✅ Loaded Tasks (${fetchedTasks.length}): $fetchedTasks");
 
-      print("✅ Loaded Checklist: $checklist");
-      print("✅ Loaded Tasks (${tasks.length}): $tasks");
-
-      if (tasks.isEmpty) {
-        print("⚠️ No tasks found for checklist ID: ${widget.checklistId}");
+      if (mounted) {
+        setState(() {
+          checklist = fetchedChecklist;
+          tasks = fetchedTasks;
+          isLoading = false;
+        });
       }
     } catch (e) {
       print("❌ Error loading checklist: $e");
@@ -53,31 +56,22 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
 
   /// 🔹 Toggle task completion
   void toggleTaskCompletion(String taskId, bool? currentStatus) async {
-    if (currentStatus == null) {
-      print("⚠️ Task completion status is null. Defaulting to false.");
-      currentStatus = false;
-    }
-
-    print(
-        "🔄 Toggling Task Completion: Task ID: $taskId | Current: $currentStatus");
+    bool nonNullStatus = currentStatus ?? false;
 
     setState(() {
       tasks = tasks.map((task) {
         if (task["id"] == taskId) {
-          return {
-            ...task,
-            "is_completed": !currentStatus!,
-          };
+          return {...task, "is_completed": !nonNullStatus};
         }
         return task;
       }).toList();
     });
 
-    await TasksService.updateTaskCompletion(taskId, !currentStatus);
+    await TasksService.updateTaskCompletion(taskId, !nonNullStatus);
     checkChecklistCompletion();
   }
 
-  /// 🔹 Mark checklist as completed if all tasks are done
+  /// 🔹 Check if all tasks are complete and mark checklist accordingly
   void checkChecklistCompletion() async {
     bool allCompleted =
         tasks.isNotEmpty && tasks.every((task) => task["is_completed"] == true);
@@ -92,6 +86,70 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
     }
   }
 
+  /// 🔹 Show note dialog for a task
+  void _showNoteDialog(Map<String, dynamic> task) {
+    TextEditingController noteController =
+        TextEditingController(text: task["notes"] ?? "");
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add/Edit Note"),
+        content: TextField(
+          controller: noteController,
+          decoration: const InputDecoration(labelText: "Note"),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              String newNote = noteController.text;
+              await TasksService.updateTaskNote(task["id"], newNote);
+              setState(() {
+                task["notes"] = newNote;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔹 Pick an image (mobile: image_picker, web: file_picker) and update the task
+  Future<void> _pickImage(Map<String, dynamic> task) async {
+    if (kIsWeb) {
+      FilePickerResult? result =
+          await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result != null && result.files.isNotEmpty) {
+        Uint8List fileBytes = result.files.first.bytes!;
+        String fileName = result.files.first.name;
+        String? fileUrl = await TasksService.updateTaskImageWeb(
+            task["id"], fileBytes, fileName);
+        if (fileUrl != null) {
+          setState(() {
+            task["file"] = fileUrl;
+          });
+        }
+      }
+    } else {
+      final XFile? pickedFile =
+          await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        File imageFile = File(pickedFile.path);
+        await TasksService.updateTaskImage(task["id"], imageFile);
+        setState(() {
+          task["file"] = imageFile.path;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,24 +158,42 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
           ? const Center(child: CircularProgressIndicator())
           : tasks.isEmpty
               ? const Center(
-                  child: Text("⚠️ No tasks found for this checklist."),
-                )
+                  child: Text("⚠️ No tasks found for this checklist."))
               : ListView.builder(
                   padding: const EdgeInsets.all(10),
                   itemCount: tasks.length,
                   itemBuilder: (context, index) {
                     var task = tasks[index];
 
-                    print(
-                        "🔹 Displaying Task: ${task['id']} | ${task['name']} | Completed: ${task['is_completed']}");
-
                     return Card(
                       elevation: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: CheckboxListTile(
-                        title: Text(task["name"] ?? "Unnamed Task"),
-                        value: task["is_completed"] ??
-                            false, // ✅ Handle null values
+                        title: Row(
+                          children: [
+                            Expanded(
+                                child: Text(task["name"] ?? "Unnamed Task")),
+                            IconButton(
+                              icon: const Icon(Icons.note),
+                              tooltip: "Add/Edit Note",
+                              onPressed: () {
+                                _showNoteDialog(task);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.camera_alt),
+                              tooltip: "Upload Picture",
+                              onPressed: () {
+                                _pickImage(task);
+                              },
+                            ),
+                          ],
+                        ),
+                        subtitle: (task["notes"] != null &&
+                                task["notes"].toString().trim().isNotEmpty)
+                            ? Text("📝 Note: ${task["notes"]}")
+                            : null,
+                        value: task["is_completed"] ?? false,
                         onChanged: (bool? value) {
                           toggleTaskCompletion(
                               task["id"], task["is_completed"]);

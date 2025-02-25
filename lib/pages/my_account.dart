@@ -21,14 +21,13 @@ class MyAccountPageState extends State<MyAccountPage> {
 
   void loadUserData() async {
     try {
-      Map<String, dynamic> fetchedUserData =
-          await PocketBaseService.getCurrentUser();
+      final fetchedUserData = await PocketBaseService.getLoggedInUserId();
       setState(() {
-        userData = fetchedUserData;
+        userData = fetchedUserData as Map<String, dynamic>?;
         isLoading = false;
       });
     } catch (e) {
-      print("Error loading user data: $e");
+      print("❌ Error loading user data: $e");
       setState(() {
         isLoading = false;
       });
@@ -43,7 +42,7 @@ class MyAccountPageState extends State<MyAccountPage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : userData == null
-              ? const Center(child: Text("Failed to load user data."))
+              ? const Center(child: Text("⚠️ Failed to load user data."))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -80,10 +79,12 @@ class MyAccountPageState extends State<MyAccountPage> {
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 40,
-              backgroundImage: AssetImage(
-                  'assets/default_profile.png'), // Update with actual profile picture if available
+              backgroundImage: userData?['profile_picture'] != null
+                  ? NetworkImage(userData?['profile_picture'])
+                  : const AssetImage('assets/default_profile.png')
+                      as ImageProvider,
             ),
             const SizedBox(width: 20),
             Column(

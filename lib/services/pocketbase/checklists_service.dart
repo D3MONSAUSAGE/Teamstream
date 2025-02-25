@@ -28,8 +28,10 @@ class ChecklistsService {
 
       if (searchDate != null) {
         checklists = checklists.where((checklist) {
-          if (checklist['start_time'] == null || checklist['start_time'] == "")
+          if (checklist['start_time'] == null ||
+              checklist['start_time'] == "") {
             return false;
+          }
           DateTime checklistDate = DateTime.parse(checklist['start_time']);
           return checklistDate.year == searchDate.year &&
               checklistDate.month == searchDate.month &&
@@ -48,7 +50,14 @@ class ChecklistsService {
   static Future<Map<String, dynamic>> fetchChecklistById(
       String checklistId) async {
     try {
-      return await BaseService.fetchOne(checklistCollection, checklistId);
+      var checklist =
+          await BaseService.fetchOne(checklistCollection, checklistId);
+      if (checklist != null && checklist.isNotEmpty) {
+        return checklist!;
+      } else {
+        print("⚠️ Warning: Checklist with ID $checklistId not found.");
+        return {};
+      }
     } catch (e) {
       print("❌ Error fetching checklist $checklistId: $e");
       return {};
@@ -62,9 +71,11 @@ class ChecklistsService {
       List<Map<String, dynamic>> tasks =
           await BaseService.fetchAll(tasksCollection);
 
-      return tasks
-          .where((task) => task["checklist_id"] == checklistId)
-          .toList();
+      List<Map<String, dynamic>> filteredTasks =
+          tasks.where((task) => task["checklist_id"] == checklistId).toList();
+
+      print("✅ Tasks for Checklist ($checklistId): $filteredTasks");
+      return filteredTasks;
     } catch (e) {
       print("❌ Error fetching tasks for checklist $checklistId: $e");
       return [];
@@ -106,30 +117,19 @@ class ChecklistsService {
 
       // Add tasks to the checklist
       for (String taskName in tasks) {
-        await addTaskToChecklist(checklistId, taskName);
+        await BaseService.create(tasksCollection, {
+          "checklist_id": checklistId,
+          "name": taskName,
+          "is_completed": false,
+          "notes": "",
+          "is_revised": false,
+        });
       }
 
       return checklistId;
     } catch (e) {
       print("❌ Error creating checklist: $e");
       rethrow;
-    }
-  }
-
-  /// 🔹 Add a task to an existing checklist
-  static Future<void> addTaskToChecklist(
-      String checklistId, String taskTitle) async {
-    try {
-      Map<String, dynamic> taskBody = {
-        "checklist_id": checklistId,
-        "name": taskTitle, // ✅ Store task name under "name"
-        "is_completed": false, // ✅ Ensure this is initialized to false
-        "note": "",
-      };
-      await BaseService.create(tasksCollection, taskBody);
-      print("✅ Task added to checklist $checklistId: $taskTitle");
-    } catch (e) {
-      print("❌ Error adding task to checklist $checklistId: $e");
     }
   }
 
@@ -161,6 +161,18 @@ class ChecklistsService {
       print("✅ Checklist $checklistId manually marked as completed");
     } catch (e) {
       print("❌ Error marking checklist $checklistId as completed: $e");
+    }
+  }
+
+  /// 🔹 Mark a checklist as verified by manager
+  static Future<void> markChecklistVerified(String checklistId) async {
+    try {
+      await BaseService.update(checklistCollection, checklistId, {
+        "verified_by_manager": true,
+      });
+      print("✅ Checklist $checklistId marked as verified by manager");
+    } catch (e) {
+      print("❌ Error verifying checklist $checklistId: $e");
     }
   }
 }

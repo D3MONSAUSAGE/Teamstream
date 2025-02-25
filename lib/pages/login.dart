@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:teamstream/services/pocketbase_service.dart';
+import 'package:teamstream/services/pocketbase/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,7 +22,8 @@ class LoginPageState extends State<LoginPage> {
       isLoading = true;
     });
 
-    bool success = await PocketBaseService.login(
+    // ✅ Try to log in and get user ID
+    String? userId = await PocketBaseService.login(
       emailController.text.trim(),
       passwordController.text.trim(),
     );
@@ -30,9 +32,12 @@ class LoginPageState extends State<LoginPage> {
       isLoading = false;
     });
 
-    if (success) {
+    if (userId != null) {
+      AuthService.setLoggedInUser(userId);
+      print("✅ Successfully logged in. User ID: $userId"); // Debugging output
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
+      print("❌ Login failed. No user ID retrieved.");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Invalid email or password")),
       );
