@@ -53,7 +53,7 @@ class ChecklistsService {
       var checklist =
           await BaseService.fetchOne(checklistCollection, checklistId);
       if (checklist != null && checklist.isNotEmpty) {
-        return checklist!;
+        return checklist;
       } else {
         print("⚠️ Warning: Checklist with ID $checklistId not found.");
         return {};

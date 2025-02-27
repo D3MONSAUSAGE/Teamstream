@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:teamstream/pages/login.dart';
 import 'package:teamstream/pages/dashboard.dart';
 import 'package:teamstream/pages/my_account.dart';
-import 'package:teamstream/pages/finance.dart';
+import 'package:teamstream/pages/finance/finance.dart';
 import 'package:teamstream/pages/human_resources.dart';
 import 'package:teamstream/pages/training.dart';
 import 'package:teamstream/pages/requests_page.dart';
@@ -10,6 +10,8 @@ import 'package:teamstream/pages/documents.dart';
 import 'package:teamstream/pages/checklists.dart';
 
 void main() {
+  WidgetsFlutterBinding
+      .ensureInitialized(); // ✅ Ensures plugins are initialized
   runApp(const MyApp());
 }
 
@@ -25,7 +27,6 @@ class MyApp extends StatelessWidget {
         '/': (context) => const LoginPage(),
         '/dashboard': (context) => const DashboardPage(),
         '/my_account': (context) => const MyAccountPage(),
-        //'/schedules': (context) => const SchedulesPage(),
         '/finance': (context) => const FinancePage(),
         '/human_resources': (context) => const HumanResourcesPage(),
         '/training': (context) => const TrainingPage(),

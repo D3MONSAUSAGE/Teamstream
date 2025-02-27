@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:teamstream/services/pocketbase/documents_service.dart';
 import 'package:teamstream/widgets/menu_drawer.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -59,7 +58,10 @@ class _DocumentsPageState extends State<DocumentsPage> {
           final url = html.Url.createObjectUrlFromBlob(blob);
           final anchor = html.AnchorElement(href: url)
             ..setAttribute("download", fileName)
-            ..click();
+            ..style.display = 'none';
+          html.document.body?.append(anchor);
+          anchor.click();
+          anchor.remove();
           html.Url.revokeObjectUrl(url);
         } else {
           throw Exception("Failed to download file: ${response.statusCode}");
