@@ -6,8 +6,10 @@ import 'package:teamstream/pages/finance/finance.dart';
 import 'package:teamstream/pages/human_resources.dart';
 import 'package:teamstream/pages/training.dart';
 import 'package:teamstream/pages/requests_page.dart';
-import 'package:teamstream/pages/documents.dart';
-import 'package:teamstream/pages/checklists.dart';
+import 'package:teamstream/pages/documents/documents.dart';
+import 'package:teamstream/pages/checklists/checklists.dart'; // Updated import
+import 'package:teamstream/pages/manager_dashboard.dart'; // Import the ManagerDashboard page
+import 'package:teamstream/utils/theme.dart'; // Import the theme file
 
 void main() {
   WidgetsFlutterBinding
@@ -22,6 +24,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: CustomTheme.getLightTheme, // Access the getter (no parentheses)
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginPage(),
@@ -31,8 +34,10 @@ class MyApp extends StatelessWidget {
         '/human_resources': (context) => const HumanResourcesPage(),
         '/training': (context) => const TrainingPage(),
         '/requests': (context) => const RequestsPage(),
-        '/checklists': (context) => const ChecklistsPage(),
-        '/documents': (context) => const DocumentsPage(),
+        '/checklists': (context) => const ChecklistsPage(), // Updated route
+        '/documents/documents': (context) => const DocumentsPage(),
+        '/manager_dashboard': (context) =>
+            const ManagerDashboard(), // Add this line
       },
     );
   }

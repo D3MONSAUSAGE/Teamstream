@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:teamstream/services/pocketbase/auth_service.dart';
 
 class MenuDrawer extends StatelessWidget {
   const MenuDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Fetch the logged-in user's role
+    final String? userRole = AuthService.getUserRole();
+
+    // Debug: Print the role retrieved from AuthService
+    print("Retrieved Role in MenuDrawer: $userRole");
+
+    // Define roles that can access the Manager Dashboard
+    final List<String> managerRoles = ["Branch Manager", "Admin"];
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -46,12 +56,22 @@ class MenuDrawer extends StatelessWidget {
           _buildMenuItem(context, Icons.checklist, "Checklists", '/checklists'),
           _buildMenuItem(context, Icons.file_copy, "Documents", '/documents'),
 
+          // Add Manager Dashboard option (only for Branch Managers and Admins)
+          if (managerRoles.contains(userRole))
+            _buildMenuItem(
+              context,
+              Icons.manage_accounts,
+              "Manager Dashboard",
+              '/manager_dashboard',
+            ),
+
           const Divider(), // Adds a separator line
 
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text("Logout", style: TextStyle(color: Colors.red)),
             onTap: () {
+              AuthService.clearLoggedInUser();
               Navigator.pushReplacementNamed(context, '/');
             },
           ),

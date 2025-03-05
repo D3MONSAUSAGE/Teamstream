@@ -4,6 +4,7 @@ import 'package:teamstream/pages/finance/invoice_list.dart';
 import 'package:teamstream/pages/finance/invoice_upload.dart';
 import 'package:teamstream/pages/finance/expense_tracking.dart';
 import 'package:teamstream/pages/finance/sales_reports.dart';
+import 'package:teamstream/pages/finance/miles_page.dart'; // ✅ Added Mileage Tracking Page
 
 class FinancePage extends StatefulWidget {
   const FinancePage({super.key});
@@ -57,6 +58,14 @@ class FinancePageState extends State<FinancePage> {
               title: "Daily Sales Reports",
               icon: Icons.show_chart,
               page: const SalesReportsPage(),
+            ),
+
+            // 🔹 Mileage Tracking (NEW)
+            _buildFinanceOption(
+              context,
+              title: "Mileage Tracking",
+              icon: Icons.directions_car,
+              page: const MilesPage(),
             ),
 
             const SizedBox(height: 20),

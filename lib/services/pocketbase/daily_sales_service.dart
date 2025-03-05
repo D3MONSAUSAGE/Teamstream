@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart'; // ✅ Now using Syncfusion
 import 'package:teamstream/services/pocketbase/base_service.dart';
 
@@ -7,7 +8,8 @@ class DailySalesService {
   static const String collectionName = "daily_sales";
 
   /// 🔹 Upload & Extract Data from PDF
-  static Future<bool> uploadSalesReport(PlatformFile file) async {
+  static Future<bool> uploadSalesReport(
+      PlatformFile file, DateTime dateTime) async {
     try {
       Uint8List fileBytes = file.bytes!;
 
@@ -36,6 +38,41 @@ class DailySalesService {
       }
     } catch (e) {
       print("❌ Error uploading sales report: $e");
+      return false;
+    }
+  }
+
+  /// 🔹 Delete Daily Sale by Date
+  static Future<bool> deleteDailySale(DateTime date) async {
+    try {
+      // Format the date to match the format stored in PocketBase
+      String formattedDate = DateFormat('yyyy-MM-dd').format(date);
+
+      // Fetch the record ID for the given date
+      List<Map<String, dynamic>> records =
+          await BaseService.fetchAll(collectionName);
+      String? recordId;
+      for (var record in records) {
+        if (record["date"] == formattedDate) {
+          recordId = record["id"];
+          break;
+        }
+      }
+
+      if (recordId == null) {
+        throw Exception("❌ No record found for the selected date.");
+      }
+
+      // Delete the record
+      bool success = await BaseService.delete(collectionName, recordId);
+      if (success) {
+        print("✅ Daily sale deleted successfully!");
+        return true;
+      } else {
+        throw Exception("❌ Failed to delete daily sale.");
+      }
+    } catch (e) {
+      print("❌ Error deleting daily sale: $e");
       return false;
     }
   }
@@ -87,7 +124,7 @@ class DailySalesService {
   /// 🔹 Extract Numeric Values from PDF Text
   static double _extractValue(String text, String key) {
     try {
-      RegExp regex = RegExp("${key}\\s*[:]?\\s*\\\$?([\\d,]+\\.\\d+)");
+      RegExp regex = RegExp("$key\\s*[:]?\\s*\\\$?([\\d,]+\\.\\d+)");
       Match? match = regex.firstMatch(text);
       if (match != null) {
         return double.parse(match.group(1)!.replaceAll(",", ""));

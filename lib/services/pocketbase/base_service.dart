@@ -49,6 +49,30 @@ class BaseService {
     }
   }
 
+  /// 🔹 Fetch records by a specific field value
+  static Future<List<Map<String, dynamic>>> fetchByField(
+      String collection, String field, String value) async {
+    try {
+      final url = Uri.parse(
+          "$baseUrl/collections/$collection/records?filter=($field='$value')");
+      final response = await http.get(url, headers: _getHeaders());
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data.containsKey('items')) {
+          return List<Map<String, dynamic>>.from(data['items']);
+        } else {
+          throw Exception("Unexpected response format in fetchByField()");
+        }
+      } else {
+        throw Exception("Failed to fetch records by field: ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Error in fetchByField(): $e");
+      return [];
+    }
+  }
+
   /// 🔹 Create a new record with optional file upload
   static Future<String?> create(String collection, Map<String, dynamic> data,
       {List<dynamic>? files}) async {
@@ -145,53 +169,6 @@ class BaseService {
     } catch (e) {
       print("❌ Error in delete(): $e");
       return false;
-    }
-  }
-
-  /// 🔹 Upload a file to a collection (Supports multiple files)
-  static Future<bool> uploadFile(
-      String collection, Map<String, dynamic> data, List<dynamic> files) async {
-    try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records");
-      var request = http.MultipartRequest('POST', url);
-
-      data.forEach((key, value) {
-        request.fields[key] = value.toString();
-      });
-
-      await _attachFiles(request, files);
-      request.headers.addAll(_getHeaders());
-
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        throw Exception("Failed to upload file: $responseBody");
-      }
-    } catch (e) {
-      print("❌ Error in uploadFile(): $e");
-      return false;
-    }
-  }
-
-  /// 🔹 Generate authenticated file URL
-  static Future<String> getFileUrl(
-      String documentId, String fileName, String authToken) async {
-    try {
-      final url = Uri.parse("$baseUrl/files/documents/$documentId/$fileName");
-      final response =
-          await http.head(url, headers: {"Authorization": "Bearer $authToken"});
-
-      if (response.statusCode == 200) {
-        return url.toString();
-      } else {
-        throw Exception("Unauthorized: Unable to access file.");
-      }
-    } catch (e) {
-      print("❌ Error in getFileUrl(): $e");
-      throw Exception("Failed to retrieve file URL.");
     }
   }
 

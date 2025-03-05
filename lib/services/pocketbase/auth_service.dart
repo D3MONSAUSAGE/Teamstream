@@ -1,38 +1,51 @@
 import 'package:pocketbase/pocketbase.dart';
-import 'package:teamstream/services/pocketbase/base_service.dart';
 
 class AuthService {
   static String? _loggedInUserId;
+  static String? _loggedInUserRole;
 
   /// 🔹 Get the logged-in user's ID
   static String? getLoggedInUserId() {
     return _loggedInUserId;
   }
 
-  /// 🔹 Set the logged-in user's ID
-  static void setLoggedInUser(String userId) {
-    _loggedInUserId = userId;
+  /// 🔹 Get the logged-in user's role
+  static String? getUserRole() {
+    return _loggedInUserRole;
   }
 
-  /// 🔹 Clear the stored user ID when logging out
+  /// 🔹 Set the logged-in user's ID & Role
+  static void setLoggedInUser(String userId, String role) {
+    _loggedInUserId = userId;
+    _loggedInUserRole = role;
+  }
+
+  /// 🔹 Clear the stored user data when logging out
   static void clearLoggedInUser() {
     _loggedInUserId = null;
-    print("✅ Logged-in user ID cleared.");
+    _loggedInUserRole = null;
+    print("✅ Logged-in user data cleared.");
   }
-}
 
-/// 🔹 Authenticate and log in the user
-Future<bool> loginUser(String email, String password) async {
-  try {
-    final pb = PocketBase(BaseService.baseUrl);
-    final authResponse =
-        await pb.collection('users').authWithPassword(email, password);
+  /// 🔹 Authenticate and log in the user
+  static Future<bool> login(String email, String password) async {
+    try {
+      final pb = PocketBase('http://127.0.0.1:8090');
 
-    AuthService._loggedInUserId = authResponse.record.id; // Store user ID
-    print("✅ Logged in user ID: ${AuthService._loggedInUserId}");
-    return true;
-  } catch (e) {
-    print("❌ Login failed: $e");
-    return false;
+      final authResponse =
+          await pb.collection('users').authWithPassword(email, password);
+
+      String userId = authResponse.record.id;
+      String userRole =
+          authResponse.record.data["role"]; // Fetch role from record data
+
+      setLoggedInUser(userId, userRole); // ✅ Store user ID & Role
+
+      print("✅ Successfully logged in. User ID: $userId | Role: $userRole");
+      return true;
+    } catch (e) {
+      print("❌ Login failed: $e");
+      return false;
+    }
   }
 }

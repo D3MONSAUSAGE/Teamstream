@@ -42,7 +42,7 @@ class InvoiceListPageState extends State<InvoiceListPage> {
     DateTime? selectedDate;
     PlatformFile? selectedFile;
 
-    void _pickFile() async {
+    void pickFile() async {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'png'],
@@ -54,7 +54,7 @@ class InvoiceListPageState extends State<InvoiceListPage> {
       }
     }
 
-    void _pickDate() async {
+    void pickDate() async {
       DateTime? pickedDate = await showDatePicker(
         context: context,
         initialDate: DateTime.now(),
@@ -86,14 +86,14 @@ class InvoiceListPageState extends State<InvoiceListPage> {
                       ? "Select Invoice Date"
                       : "Date: ${DateFormat('yyyy-MM-dd').format(selectedDate!)}"),
                   leading: const Icon(Icons.calendar_today),
-                  onTap: _pickDate,
+                  onTap: pickDate,
                 ),
                 ListTile(
                   title: Text(selectedFile == null
                       ? "Select Invoice File"
                       : "File: ${selectedFile!.name}"),
                   leading: const Icon(Icons.attach_file),
-                  onTap: _pickFile,
+                  onTap: pickFile,
                 ),
                 TextField(
                   controller: amountController,

@@ -8,16 +8,24 @@ import 'package:teamstream/services/pocketbase/auth_service.dart';
 class PocketBaseService {
   static final PocketBase pb = PocketBase('http://127.0.0.1:8090');
 
-  /// 🔹 Authenticate and log in the user, returning the user ID
-  static Future<String?> login(String email, String password) async {
+  /// 🔹 Authenticate and log in the user, returning the user ID and role
+  static Future<Map<String, String>?> login(
+      String email, String password) async {
     try {
       final authResponse =
           await pb.collection('users').authWithPassword(email, password);
 
+      // ✅ Fetch user data correctly
       String userId = authResponse.record.id;
-      AuthService.setLoggedInUser(userId);
-      print("✅ Successfully logged in. User ID: $userId");
-      return userId;
+      String userEmail = authResponse.record.getStringValue("email");
+      String userRole = authResponse.record.getStringValue("role");
+
+      // ✅ Store user details in AuthService
+      AuthService.setLoggedInUser(userId, userRole);
+      print(
+          "✅ Successfully logged in. User ID: $userId | Email: $userEmail | Role: $userRole");
+
+      return {"userId": userId, "role": userRole};
     } catch (e) {
       print("❌ Login failed: $e");
       return null;
@@ -32,7 +40,6 @@ class PocketBaseService {
   }
 
   /// 🔹 Get the Logged-in User ID
-  /// 🔹 Get the Logged-in User ID (With Validation)
   static String? getLoggedInUserId() {
     String? userId = AuthService.getLoggedInUserId();
     if (userId == null || userId.isEmpty) {
@@ -159,36 +166,6 @@ class PocketBaseService {
     } catch (e) {
       print("❌ Error fetching assigned schedules: $e");
       return [];
-    }
-  }
-
-  /// 🔹 Create a Checklist
-  static Future<void> createChecklist(
-    String title,
-    String description,
-    String shift,
-    String startTime,
-    String endTime,
-    List<String> tasks,
-    String area,
-  ) async {
-    try {
-      await pb.collection('checklists').create(body: {
-        "title": title,
-        "description": description,
-        "shift": shift,
-        "start_time": startTime,
-        "end_time": endTime,
-        "tasks": tasks,
-        "area": area,
-        "completed": false,
-        "verified_by_manager": false,
-        "executed_at": null,
-      });
-      print("✅ Checklist created successfully!");
-    } catch (e) {
-      print("❌ Error creating checklist: $e");
-      throw Exception("Failed to create checklist.");
     }
   }
 
