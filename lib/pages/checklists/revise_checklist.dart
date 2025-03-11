@@ -28,7 +28,8 @@ class _ReviseChecklistPageState extends State<ReviseChecklistPage> {
     try {
       // Fetch checklist details
       Map<String, dynamic> fetchedChecklist =
-          await ChecklistsService.fetchChecklistById(widget.checklistId);
+          await ChecklistsService.fetchChecklistById(widget.checklistId)
+              as Map<String, dynamic>;
       // Fetch tasks for the checklist
       List<Map<String, dynamic>> fetchedTasks =
           await TasksService.fetchTasksByChecklistId(widget.checklistId);

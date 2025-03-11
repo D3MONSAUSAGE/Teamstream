@@ -4,6 +4,7 @@ import 'package:teamstream/widgets/menu_drawer.dart';
 import 'package:teamstream/pages/checklists/checklist_card.dart';
 import 'package:teamstream/pages/checklists/add_checklists.dart';
 import 'package:teamstream/services/pocketbase/role_service.dart';
+import 'package:teamstream/services/pocketbase/auth_service.dart';
 
 class ChecklistsPage extends StatefulWidget {
   const ChecklistsPage({super.key});
@@ -17,38 +18,69 @@ class ChecklistsPageState extends State<ChecklistsPage> {
   List<Map<String, dynamic>> availableChecklists = [];
   List<Map<String, dynamic>> completedChecklists = [];
   bool isLoading = true;
-  bool canCreateChecklists = false; // Tracks if user can create checklists
+  bool canCreateChecklists = false;
 
-  // Date range filters
+  final List<String> managerRoles = [
+    RoleService.branchManager,
+    RoleService.hospitalityManager,
+    RoleService.admin,
+  ];
+
   DateTime? searchStartDate;
   DateTime? searchEndDate;
 
   @override
   void initState() {
     super.initState();
-    _checkPermissions(); // Check user role on load
+    _fetchUserRole();
     _loadChecklists();
   }
 
-  void _checkPermissions() async {
+  void _fetchUserRole() async {
+    try {
+      String? userRole = await AuthService.getUserRole();
+      print("🛠️ Retrieved Role in ChecklistsPage: $userRole");
+
+      if (userRole != null) {
+        RoleService.setUserRole(userRole);
+      }
+
+      _checkPermissions();
+    } catch (e) {
+      print("❌ Error fetching user role: $e");
+    }
+  }
+
+  void _checkPermissions() {
+    String? userRole = RoleService.currentUserRole;
+    print("🛠️ Current User Role: $userRole");
+
     setState(() {
-      canCreateChecklists = RoleService.canCreateChecklists();
+      canCreateChecklists = managerRoles.contains(userRole);
+      print("🛠️ Can create checklists: $canCreateChecklists");
     });
   }
 
   void _loadChecklists() async {
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
-    List<Map<String, dynamic>> fetchedChecklists =
-        await ChecklistsService.fetchChecklists();
+    try {
+      List<Map<String, dynamic>> fetchedChecklists =
+          await ChecklistsService.fetchChecklists();
+      print("✅ Fetched ${fetchedChecklists.length} checklists");
 
-    setState(() {
-      allChecklists = fetchedChecklists;
-      _applyDateFilter();
-      isLoading = false;
-    });
+      setState(() {
+        allChecklists = fetchedChecklists;
+        _applyDateFilter();
+      });
+    } catch (e) {
+      print("❌ Error loading checklists: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to load checklists: $e")),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   void _applyDateFilter() {
@@ -56,7 +88,8 @@ class ChecklistsPageState extends State<ChecklistsPage> {
 
     if (searchStartDate != null) {
       filtered = filtered.where((checklist) {
-        if (checklist['start_time'] == null || checklist['start_time'] == "") {
+        if (checklist['start_time'] == null ||
+            checklist['start_time'].isEmpty) {
           return false;
         }
         DateTime checklistDate = DateTime.parse(checklist['start_time']);
@@ -67,7 +100,8 @@ class ChecklistsPageState extends State<ChecklistsPage> {
 
     if (searchEndDate != null) {
       filtered = filtered.where((checklist) {
-        if (checklist['start_time'] == null || checklist['start_time'] == "") {
+        if (checklist['start_time'] == null ||
+            checklist['start_time'].isEmpty) {
           return false;
         }
         DateTime checklistDate = DateTime.parse(checklist['start_time']);
@@ -76,7 +110,6 @@ class ChecklistsPageState extends State<ChecklistsPage> {
       }).toList();
     }
 
-    // Separate available and completed checklists
     setState(() {
       availableChecklists = filtered
           .where((checklist) => !(checklist['completed'] ?? false))
@@ -92,6 +125,8 @@ class ChecklistsPageState extends State<ChecklistsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Checklists'),
+        backgroundColor: Colors.blueAccent,
+        elevation: 4,
         actions: [
           IconButton(
             icon: const Icon(Icons.date_range),
@@ -145,7 +180,11 @@ class ChecklistsPageState extends State<ChecklistsPage> {
       ),
       drawer: const MenuDrawer(),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -163,8 +202,9 @@ class ChecklistsPageState extends State<ChecklistsPage> {
               },
               icon: const Icon(Icons.add),
               label: const Text("Create Checklist"),
+              backgroundColor: Colors.green,
             )
-          : null, // Hide if the user doesn't have permission
+          : null,
     );
   }
 
@@ -173,16 +213,39 @@ class ChecklistsPageState extends State<ChecklistsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.blueAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueAccent,
+            ),
+          ),
+        ),
         const SizedBox(height: 10),
         if (checklists.isEmpty)
           const Center(child: Text("No checklists available")),
-        ...checklists.map((checklist) => ChecklistCard(
-              checklist: checklist,
-              onChecklistCompleted: () {
-                _loadChecklists();
-              },
+        ...checklists.map((checklist) => Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                side: BorderSide(
+                    color: Colors.blueAccent.withOpacity(0.2), width: 1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: ChecklistCard(
+                checklist: checklist,
+                onChecklistCompleted: () {
+                  _loadChecklists();
+                },
+              ),
             )),
       ],
     );

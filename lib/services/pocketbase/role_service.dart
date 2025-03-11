@@ -12,6 +12,7 @@ class RoleService {
   /// 🔹 Set the current user's role
   static void setUserRole(String role) {
     currentUserRole = role;
+    print("✅ Role set in RoleService: $currentUserRole"); // Debug log
   }
 
   /// 🔹 Check if the user is a manager

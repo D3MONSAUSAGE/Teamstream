@@ -1,44 +1,55 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
 
 android {
-    namespace = "com.example.teamstream"
-    compileSdk = flutter.compileSdkVersion
+    namespace "com.example.teamstream" // ✅ Use only ONE namespace
+    compileSdk = 35 // ✅ Updated to match the highest required SDK version
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11 // ✅ Keep Java 11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = "11" // ✅ Keep Java 11
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.teamstream"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        applicationId "com.example.teamstream" // ✅ Keep the same as namespace
+        minSdk = 21 // ✅ Explicit minSdk (ensure compatibility)
+        targetSdk = 35 // ✅ Updated to match compileSdk
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+            minifyEnabled true // ✅ Enable minification to allow resource shrinking
+            shrinkResources true // ✅ Enable resource shrinking
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/**', 'META-INF/DEPENDENCIES']
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+// ✅ Fixed Kotlin dependency (Use `kotlin-stdlib` instead of `kotlin-stdlib-jdk11`)
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22" // ✅ Corrected Kotlin dependency
+    implementation 'androidx.core:core-ktx:1.10.1' // ✅ Updated to latest stable version
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
 }

@@ -1,6 +1,6 @@
-import 'dart:io';
+import 'dart:io' show File;
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:teamstream/services/pocketbase/documents_service.dart';
 import 'package:teamstream/widgets/menu_drawer.dart';
@@ -8,7 +8,6 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:teamstream/pages/documents/document_viewer.dart';
-import 'dart:html' as html; // Web-specific file handling
 
 class DocumentsPage extends StatefulWidget {
   const DocumentsPage({super.key});
@@ -37,7 +36,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
     });
   }
 
-  /// 🔹 Open documents (Web → iframe, Mobile → WebView)
+  /// 🔹 Open documents (Android)
   void _openDocument(String fileUrl, String fileName) {
     Navigator.push(
       context,
@@ -47,52 +46,26 @@ class _DocumentsPageState extends State<DocumentsPage> {
     );
   }
 
-  /// 🔹 Download File (Web → Save via browser, Mobile → Save locally)
+  /// 🔹 Download and Open File (Android-Only)
   Future<void> _downloadAndOpenFile(String fileUrl, String fileName) async {
-    if (kIsWeb) {
-      try {
-        final response = await http.get(Uri.parse(fileUrl));
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = "${directory.path}/$fileName";
 
-        if (response.statusCode == 200) {
-          final blob = html.Blob([response.bodyBytes]);
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          final anchor = html.AnchorElement(href: url)
-            ..setAttribute("download", fileName)
-            ..style.display = 'none';
-          html.document.body?.append(anchor);
-          anchor.click();
-          anchor.remove();
-          html.Url.revokeObjectUrl(url);
-        } else {
-          throw Exception("Failed to download file: ${response.statusCode}");
-        }
-      } catch (e) {
-        print("Error downloading file: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to download file.")),
-        );
-      }
-    } else {
-      try {
-        final directory = await getApplicationDocumentsDirectory();
-        final filePath = "${directory.path}/$fileName";
+      final response = await http.get(Uri.parse(fileUrl));
+      final file = File(filePath);
+      await file.writeAsBytes(response.bodyBytes);
 
-        final response = await http.get(Uri.parse(fileUrl));
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-
-        OpenFile.open(filePath);
-      } catch (e) {
-        print("Error downloading file: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to download file.")),
-        );
-      }
+      OpenFile.open(filePath);
+    } catch (e) {
+      print("❌ Error downloading file: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to download file.")),
+      );
     }
   }
 
-  /// 🔹 Upload a Document
-  /// 🔹 Upload a Document
+  /// 🔹 Upload a Document (Android)
   Future<void> _uploadDocument() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -100,25 +73,16 @@ class _DocumentsPageState extends State<DocumentsPage> {
     );
 
     if (result != null) {
-      File? file;
-      Uint8List? fileBytes;
+      File file = File(result.files.single.path!);
       String fileName = result.files.single.name;
-
-      if (kIsWeb) {
-        // Web: Use `fileBytes` instead of `File`
-        fileBytes = result.files.single.bytes!;
-      } else {
-        // Mobile: Use `File`
-        file = File(result.files.single.path!);
-      }
 
       try {
         bool success = await DocumentsService.uploadDocument(
           title: fileName,
           description: "Uploaded from app",
           category: "General",
-          file: file, // Mobile file
-          fileBytes: fileBytes, // Web file
+          file: file,
+          fileBytes: null,
           fileName: fileName,
         );
 
@@ -126,7 +90,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("✅ Document uploaded successfully!")),
           );
-          _loadDocuments(); // Refresh document list
+          _loadDocuments();
         } else {
           throw Exception("Upload failed.");
         }

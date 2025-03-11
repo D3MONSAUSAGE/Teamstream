@@ -1,4 +1,5 @@
 import 'package:pocketbase/pocketbase.dart';
+import 'package:teamstream/utils/constants.dart'; // Import the constants file
 
 class AuthService {
   static String? _loggedInUserId;
@@ -30,7 +31,8 @@ class AuthService {
   /// 🔹 Authenticate and log in the user
   static Future<bool> login(String email, String password) async {
     try {
-      final pb = PocketBase('http://127.0.0.1:8090');
+      // Use the pocketBaseUrl constant from constants.dart
+      final pb = PocketBase(pocketBaseUrl);
 
       final authResponse =
           await pb.collection('users').authWithPassword(email, password);

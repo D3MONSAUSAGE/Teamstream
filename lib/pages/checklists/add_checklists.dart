@@ -284,16 +284,22 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
                     .map((entry) => entry.key)
                     .toList();
 
+                // Format startTime and endTime as strings
+                String formattedStartTime =
+                    DateFormat("yyyy-MM-ddTHH:mm:ss").format(startTime!);
+                String formattedEndTime =
+                    DateFormat("yyyy-MM-ddTHH:mm:ss").format(endTime!);
+
                 await ChecklistsService.createChecklist(
                   titleController.text,
                   descriptionController.text,
                   selectedShift,
-                  startTime!.toIso8601String(),
-                  endTime!.toIso8601String(),
+                  formattedStartTime,
+                  formattedEndTime,
                   selectedArea,
                   tasks,
                   repeatDaily: repeatDaily,
-                  repeatDays: selectedDayList, // Pass selected days
+                  repeatDays: selectedDayList,
                 );
                 widget.onChecklistCreated();
                 Navigator.pop(context);

@@ -31,7 +31,8 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
       print("🔹 Fetching Checklist ID: ${widget.checklistId}");
 
       Map<String, dynamic> fetchedChecklist =
-          await ChecklistsService.fetchChecklistById(widget.checklistId);
+          await ChecklistsService.fetchChecklistById(widget.checklistId)
+              as Map<String, dynamic>;
       print("✅ Loaded Checklist: $fetchedChecklist");
 
       List<Map<String, dynamic>> fetchedTasks =

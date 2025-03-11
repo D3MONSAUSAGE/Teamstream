@@ -45,6 +45,7 @@ class MenuDrawer extends StatelessWidget {
             ),
           ),
 
+          // Menu Items
           _buildMenuItem(context, Icons.dashboard, "Dashboard", '/dashboard'),
           _buildMenuItem(context, Icons.person, "My Account", '/my_account'),
           _buildMenuItem(context, Icons.schedule, "Schedules", '/schedules'),
@@ -55,6 +56,8 @@ class MenuDrawer extends StatelessWidget {
           _buildMenuItem(context, Icons.request_page, "Requests", '/requests'),
           _buildMenuItem(context, Icons.checklist, "Checklists", '/checklists'),
           _buildMenuItem(context, Icons.file_copy, "Documents", '/documents'),
+          _buildMenuItem(context, Icons.inventory, "Inventory",
+              '/inventory'), // Added Inventory
 
           // Add Manager Dashboard option (only for Branch Managers and Admins)
           if (managerRoles.contains(userRole))
@@ -67,6 +70,7 @@ class MenuDrawer extends StatelessWidget {
 
           const Divider(), // Adds a separator line
 
+          // Logout Button
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text("Logout", style: TextStyle(color: Colors.red)),
@@ -80,13 +84,22 @@ class MenuDrawer extends StatelessWidget {
     );
   }
 
+  // Helper method to build menu items
   Widget _buildMenuItem(
       BuildContext context, IconData icon, String title, String route) {
     return ListTile(
       leading: Icon(icon, color: Colors.blueAccent),
       title: Text(title, style: const TextStyle(fontSize: 16)),
       onTap: () {
-        Navigator.pushReplacementNamed(context, route);
+        // Ensure the route is valid before navigating
+        if (route.isNotEmpty) {
+          Navigator.pushReplacementNamed(context, route);
+        } else {
+          // Fallback action if route is empty (e.g., show a message)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Navigation route not available')),
+          );
+        }
       },
     );
   }
