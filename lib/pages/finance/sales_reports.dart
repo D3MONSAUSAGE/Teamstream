@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -14,67 +15,39 @@ class SalesReportsPage extends StatefulWidget {
 class SalesReportsPageState extends State<SalesReportsPage> {
   List<Map<String, dynamic>> salesData = [];
   bool isLoading = true;
-  String selectedFilter = "Week"; // ✅ Default to "Week"
+  String selectedFilter = "Week";
   DateTime? selectedDate = DateTime.now();
   DateTime? startDate;
   DateTime? endDate;
-  DateTime? uploadDate; // ✅ Date for the uploaded document
-  DateTime? deleteDate; // ✅ Date for deleting a daily sale
-
-  // Pagination variables
-  // int _rowsPerPage = 10; // Removed unused field
-
-  // Toggle button state
-  String _selectedSeries = "Gross Sales"; // Default to Gross Sales
-
-  // Dark mode state
+  DateTime? uploadDate; // Added to store selected upload date
+  String _selectedSeries = "Gross Sales";
   bool isDarkMode = false;
-
-  // Search query
-  String searchQuery = "";
 
   @override
   void initState() {
     super.initState();
-    loadSalesData();
+    _loadSalesData();
   }
 
-  void loadSalesData() async {
-    setState(() {
-      isLoading = true;
-    });
-    List<Map<String, dynamic>> fetchedData =
-        await DailySalesService.fetchSalesData();
-    setState(() {
-      salesData = fetchedData;
-      isLoading = false;
-    });
-  }
-
-  void _applyFilters() {
-    setState(() {});
-  }
-
-  /// ✅ Returns the current week's Monday - Sunday date range for display
-  String _getWeekDisplay() {
-    if (selectedFilter == "Week" && selectedDate != null) {
-      DateTime startOfWeek =
-          selectedDate!.subtract(Duration(days: selectedDate!.weekday - 1));
-      DateTime endOfWeek =
-          startOfWeek.add(const Duration(days: 6)); // ✅ Monday - Sunday
-      return "${DateFormat('MM/dd/yyyy').format(startOfWeek)} - ${DateFormat('MM/dd/yyyy').format(endOfWeek)}";
+  Future<void> _loadSalesData() async {
+    setState(() => isLoading = true);
+    try {
+      salesData =
+          await DailySalesService.fetchDailySales(); // Updated method name
+    } catch (e) {
+      _showSnackBar('Error fetching sales data: $e', isError: true);
+    } finally {
+      setState(() => isLoading = false);
     }
-    return "";
   }
 
   List<Map<String, dynamic>> _getFilteredSalesData() {
-    List<Map<String, dynamic>> filtered = salesData;
+    List<Map<String, dynamic>> filtered = List.from(salesData);
 
     if (selectedFilter == "Week" && selectedDate != null) {
       DateTime startOfWeek =
           selectedDate!.subtract(Duration(days: selectedDate!.weekday - 1));
-      DateTime endOfWeek =
-          startOfWeek.add(const Duration(days: 6)); // ✅ Monday - Sunday
+      DateTime endOfWeek = startOfWeek.add(const Duration(days: 6));
       filtered = filtered.where((data) {
         DateTime reportDate = DateTime.parse(data["date"]);
         return reportDate
@@ -84,14 +57,15 @@ class SalesReportsPageState extends State<SalesReportsPage> {
     } else if (selectedFilter == "Day" && selectedDate != null) {
       filtered = filtered.where((data) {
         DateTime reportDate = DateTime.parse(data["date"]);
-        return DateFormat('yyyy-MM-dd').format(reportDate) ==
-            DateFormat('yyyy-MM-dd').format(selectedDate!);
+        return reportDate.day == selectedDate!.day &&
+            reportDate.month == selectedDate!.month &&
+            reportDate.year == selectedDate!.year;
       }).toList();
     } else if (selectedFilter == "Month" && selectedDate != null) {
       filtered = filtered.where((data) {
         DateTime reportDate = DateTime.parse(data["date"]);
-        return reportDate.year == selectedDate!.year &&
-            reportDate.month == selectedDate!.month;
+        return reportDate.month == selectedDate!.month &&
+            reportDate.year == selectedDate!.year;
       }).toList();
     } else if (selectedFilter == "Year" && selectedDate != null) {
       filtered = filtered.where((data) {
@@ -107,118 +81,194 @@ class SalesReportsPageState extends State<SalesReportsPage> {
       }).toList();
     }
 
-    // Apply search filter
-    if (searchQuery.isNotEmpty) {
-      filtered = filtered.where((data) {
-        return data['date'].toString().contains(searchQuery) ||
-            data['gross_sales'].toString().contains(searchQuery) ||
-            data['net_sales'].toString().contains(searchQuery) ||
-            data['total_taxes'].toString().contains(searchQuery) ||
-            data['tips_collected'].toString().contains(searchQuery) ||
-            data['order_count'].toString().contains(searchQuery) ||
-            data['voids'].toString().contains(searchQuery) ||
-            data['refunds'].toString().contains(searchQuery) ||
-            data['cash_sales'].toString().contains(searchQuery);
-      }).toList();
-    }
-
     return filtered;
   }
 
-  void _uploadSalesReport() async {
+  Future<void> _uploadSalesReport() async {
+    uploadDate = await _pickDate('Select Date for Upload');
     if (uploadDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Please select a date for the upload.")),
-      );
+      _showSnackBar('No date selected for upload', isError: true);
       return;
     }
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result != null) {
-      bool success = await DailySalesService.uploadSalesReport(
-        result.files.first,
-        uploadDate!, // Pass the selected upload date
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
       );
-      if (success) {
-        loadSalesData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("✅ Sales report uploaded successfully!")),
+      if (result != null && result.files.single.bytes != null) {
+        setState(() => isLoading = true); // Show loading
+        bool success = await DailySalesService.uploadSalesReport(
+          result.files.single,
+          uploadDate!, // Pass the selected date
         );
+        if (success) {
+          await _loadSalesData(); // Refresh data
+          _showSnackBar('Sales report uploaded successfully', isSuccess: true);
+        } else {
+          _showSnackBar('Failed to upload sales report', isError: true);
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Failed to upload sales report.")),
-        );
+        _showSnackBar('No file selected', isError: true);
       }
+    } catch (e) {
+      _showSnackBar('Error uploading report: $e', isError: true);
+    } finally {
+      setState(() => isLoading = false); // Hide loading
     }
   }
 
-  void _deleteDailySale() async {
-    if (deleteDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Please select a date to delete.")),
-      );
-      return;
-    }
-
-    bool confirmDelete = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Daily Sale"),
-        content: const Text("Are you sure you want to delete this record?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete"),
-          ),
-        ],
+  void _showSnackBar(String message,
+      {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor:
+            isSuccess ? Colors.green : (isError ? Colors.red : null),
+        duration: const Duration(seconds: 2),
       ),
     );
-
-    if (confirmDelete) {
-      bool success = await DailySalesService.deleteDailySale(deleteDate!);
-      if (success) {
-        loadSalesData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Daily sale deleted successfully!")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Failed to delete daily sale.")),
-        );
-      }
-    }
   }
 
-  void _toggleDarkMode() {
-    setState(() {
-      isDarkMode = !isDarkMode;
-    });
+  Future<DateTime?> _pickDate(String label) async {
+    return await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: const ColorScheme.light(primary: Colors.blueAccent),
+        ),
+        child: child!,
+      ),
+    );
   }
 
-  Widget _buildFilterUI() {
+  @override
+  Widget build(BuildContext context) {
+    List<Map<String, dynamic>> filteredSales = _getFilteredSalesData();
+    return Theme(
+      data: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: Text(
+            'Daily Sales Reports',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              fontSize: 20,
+            ),
+          ),
+          backgroundColor: Colors.blueAccent,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: Icon(
+                isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                color: Colors.white,
+                size: 28,
+              ),
+              onPressed: () => setState(() => isDarkMode = !isDarkMode),
+              tooltip: 'Toggle Dark Mode',
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 28),
+              onPressed: _loadSalesData,
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
+        body: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent))
+            : ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  _buildHeaderSection(),
+                  const SizedBox(height: 12),
+                  _buildFilterSection(),
+                  const SizedBox(height: 12),
+                  _buildUploadSection(),
+                  const SizedBox(height: 12),
+                  _buildSalesChart(filteredSales),
+                  const SizedBox(height: 12),
+                  _buildSalesTable(filteredSales),
+                ],
+              ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _uploadSalesReport,
+          backgroundColor: Colors.blueAccent,
+          child: const Icon(Icons.upload, color: Colors.white, size: 28),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSection() {
     return Card(
-      elevation: 4,
-      margin: const EdgeInsets.all(8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Filter Sales Data",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              'Sales Dashboard',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
             const SizedBox(height: 8),
-            DropdownButton<String>(
+            Text(
+              'Analyze your daily sales performance',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Filter Sales Data',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
               value: selectedFilter,
-              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Filter Type',
+                labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              items: ["Day", "Week", "Month", "Year", "Date Range"]
+                  .map((filter) => DropdownMenuItem(
+                        value: filter,
+                        child: Text(filter, style: GoogleFonts.poppins()),
+                      ))
+                  .toList(),
               onChanged: (value) {
                 setState(() {
                   selectedFilter = value!;
@@ -227,23 +277,14 @@ class SalesReportsPageState extends State<SalesReportsPage> {
                   endDate = null;
                 });
               },
-              items: ["Day", "Week", "Month", "Year", "Date Range"]
-                  .map((filter) =>
-                      DropdownMenuItem(value: filter, child: Text(filter)))
-                  .toList(),
             ),
-            if (selectedFilter == "Week")
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  "Current Week: ${_getWeekDisplay()}",
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey),
-                ),
+            const SizedBox(height: 12),
+            if (selectedFilter == "Week" && selectedDate != null)
+              Text(
+                "Week: ${DateFormat('MMM d').format(selectedDate!.subtract(Duration(days: selectedDate!.weekday - 1)))} - ${DateFormat('MMM d').format(selectedDate!.subtract(Duration(days: selectedDate!.weekday - 1)).add(const Duration(days: 6)))}",
+                style:
+                    GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
               ),
-            const SizedBox(height: 8),
             if (selectedFilter != "Date Range")
               _buildDatePicker("Select $selectedFilter",
                   (date) => setState(() => selectedDate = date)),
@@ -253,17 +294,38 @@ class SalesReportsPageState extends State<SalesReportsPage> {
               _buildDatePicker(
                   "End Date", (date) => setState(() => endDate = date)),
             ],
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _applyFilters,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orangeAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Upload Daily Sales',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
               ),
-              child: const Text("Apply Filter"),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              uploadDate != null
+                  ? 'Selected Date: ${DateFormat('MMM d, yyyy').format(uploadDate!)}'
+                  : 'No date selected',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -272,301 +334,182 @@ class SalesReportsPageState extends State<SalesReportsPage> {
   }
 
   Widget _buildDatePicker(String label, Function(DateTime) onPicked) {
-    return ElevatedButton(
-      onPressed: () async {
-        DateTime? picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime.now(),
-          firstDate: DateTime(2000),
-          lastDate: DateTime.now(),
-        );
-        if (picked != null) onPicked(picked);
-      },
-      child: Text(label),
-    );
-  }
-
-  Widget _buildUploadSection() {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.all(8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Upload Daily Sales",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            _buildDatePicker("Select Date for Upload",
-                (date) => setState(() => uploadDate = date)),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _uploadSalesReport,
-                icon: const Icon(Icons.upload_file),
-                label: const Text("Upload Sales Report"),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: ElevatedButton(
+        onPressed: () async {
+          DateTime? picked = await _pickDate(label);
+          if (picked != null) onPicked(picked);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueAccent.withOpacity(0.1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDeleteSection() {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.all(8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Delete Daily Sale",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            _buildDatePicker("Select Date to Delete",
-                (date) => setState(() => deleteDate = date)),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _deleteDailySale,
-                icon: const Icon(Icons.delete),
-                label: const Text("Delete Daily Sale"),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(color: Colors.blue[900]),
         ),
       ),
     );
   }
 
   Widget _buildSalesChart(List<Map<String, dynamic>> salesData) {
-    return Column(
-      children: [
-        // Toggle buttons for selecting the series
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSeriesToggleButton("Gross Sales"),
-            _buildSeriesToggleButton("Net Sales"),
-            _buildSeriesToggleButton("Total Taxes"),
-          ],
-        ),
-        const SizedBox(height: 10),
-        // Chart
-        SfCartesianChart(
-          primaryXAxis: DateTimeAxis(
-            title: AxisTitle(text: 'Date'),
-            dateFormat: DateFormat('MM/dd'),
-          ),
-          primaryYAxis: NumericAxis(
-            title: AxisTitle(text: _selectedSeries),
-          ),
-          title: ChartTitle(text: 'Sales Trends'),
-          legend: Legend(isVisible: true),
-          tooltipBehavior: TooltipBehavior(enable: true),
-          series: <CartesianSeries>[
-            LineSeries<Map<String, dynamic>, DateTime>(
-              dataSource: salesData,
-              xValueMapper: (data, _) => DateTime.parse(data['date']),
-              yValueMapper: (data, _) {
-                switch (_selectedSeries) {
-                  case "Gross Sales":
-                    return double.tryParse(data['gross_sales'].toString()) ?? 0;
-                  case "Net Sales":
-                    return double.tryParse(data['net_sales'].toString()) ?? 0;
-                  case "Total Taxes":
-                    return double.tryParse(data['total_taxes'].toString()) ?? 0;
-                  default:
-                    return 0;
-                }
-              },
-              name: _selectedSeries,
-              markerSettings: const MarkerSettings(isVisible: true),
-              dataLabelSettings: const DataLabelSettings(isVisible: true),
-              color: Colors.blueAccent,
+            Text(
+              'Sales Trends',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: [
+                _buildSeriesToggleButton("Gross Sales"),
+                _buildSeriesToggleButton("Net Sales"),
+                _buildSeriesToggleButton("Total Taxes"),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 250,
+              child: SfCartesianChart(
+                primaryXAxis: DateTimeAxis(
+                  dateFormat: DateFormat('MMM d'),
+                  intervalType: DateTimeIntervalType.days,
+                ),
+                primaryYAxis: NumericAxis(labelFormat: '\${value}'),
+                series: <CartesianSeries>[
+                  LineSeries<Map<String, dynamic>, DateTime>(
+                    dataSource: salesData,
+                    xValueMapper: (data, _) => DateTime.parse(data['date']),
+                    yValueMapper: (data, _) {
+                      switch (_selectedSeries) {
+                        case "Gross Sales":
+                          return data['gross_sales'] as double? ?? 0.0;
+                        case "Net Sales":
+                          return data['net_sales'] as double? ?? 0.0;
+                        case "Total Taxes":
+                          return data['total_taxes'] as double? ?? 0.0;
+                        default:
+                          return 0.0;
+                      }
+                    },
+                    color: Colors.blueAccent,
+                    markerSettings: const MarkerSettings(isVisible: true),
+                  ),
+                ],
+                tooltipBehavior: TooltipBehavior(enable: true),
+              ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
-  void _toggleSeries(String series) {
-    setState(() {
-      _selectedSeries = series;
-    });
-  }
-
-  // Helper method to build toggle buttons
   Widget _buildSeriesToggleButton(String series) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: ElevatedButton(
-        onPressed: () => _toggleSeries(series),
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              _selectedSeries == series ? Colors.blueAccent : Colors.grey[300],
-          foregroundColor:
-              _selectedSeries == series ? Colors.white : Colors.black,
-        ),
-        child: Text(series),
+    return ElevatedButton(
+      onPressed: () => setState(() => _selectedSeries = series),
+      style: ElevatedButton.styleFrom(
+        backgroundColor:
+            _selectedSeries == series ? Colors.blueAccent : Colors.grey[300],
+        foregroundColor:
+            _selectedSeries == series ? Colors.white : Colors.blue[900],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(
+        series,
+        style: GoogleFonts.poppins(fontSize: 12),
       ),
     );
   }
 
   Widget _buildSalesTable(List<Map<String, dynamic>> salesData) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(10),
+    if (salesData.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'No sales data available for the selected filter',
+          style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
         ),
-        columns: const [
-          DataColumn(label: Text('Date')),
-          DataColumn(label: Text('Gross Sales')),
-          DataColumn(label: Text('Net Sales')),
-          DataColumn(label: Text('Total Taxes')),
-          DataColumn(label: Text('Tips Collected')),
-          DataColumn(label: Text('Order Count')),
-          DataColumn(label: Text('Voids')),
-          DataColumn(label: Text('Refunds')),
-          DataColumn(label: Text('Cash Sales')),
-        ],
-        rows: salesData.map((data) {
-          return DataRow(
-            color: WidgetStateProperty.resolveWith<Color>(
-              (Set<WidgetState> states) {
-                if (salesData.indexOf(data) % 2 == 0) {
-                  return Colors.grey[200]!;
-                }
-                return Colors.white;
-              },
-            ),
-            cells: [
-              DataCell(Text(DateFormat('MM/dd/yyyy')
-                  .format(DateTime.parse(data['date'])))),
-              DataCell(Text(data['gross_sales'].toString())),
-              DataCell(Text(data['net_sales'].toString())),
-              DataCell(Text(data['total_taxes'].toString())),
-              DataCell(Text(data['tips_collected'].toString())),
-              DataCell(Text(data['order_count'].toString())),
-              DataCell(Text(data['voids'].toString())),
-              DataCell(Text(data['refunds'].toString())),
-              DataCell(Text(data['cash_sales'].toString())),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: "Search...",
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onChanged: (value) {
-          setState(() {
-            searchQuery = value;
-          });
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    List<Map<String, dynamic>> filteredSales = _getFilteredSalesData();
-
-    return MaterialApp(
-      theme: isDarkMode ? ThemeData.dark() : ThemeData.light(),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text("Daily Sales Reports"),
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orangeAccent, Colors.deepOrange],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sales Details',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
               ),
             ),
-          ),
-          actions: [
-            IconButton(
-              icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
-              onPressed: _toggleDarkMode,
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                // Add settings functionality
-              },
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 16,
+                headingRowColor: MaterialStatePropertyAll(
+                    Colors.blueAccent.withOpacity(0.1)),
+                columns: [
+                  DataColumn(
+                      label: Text('Date',
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[900]))),
+                  DataColumn(
+                      label: Text('Gross',
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[900]))),
+                  DataColumn(
+                      label: Text('Net',
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[900]))),
+                  DataColumn(
+                      label: Text('Taxes',
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[900]))),
+                ],
+                rows: salesData.map((data) {
+                  DateTime date = DateTime.parse(data['date']);
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(DateFormat('MMM d').format(date),
+                          style: GoogleFonts.poppins(fontSize: 12))),
+                      DataCell(Text(
+                          '\$${data['gross_sales'].toStringAsFixed(2)}',
+                          style: GoogleFonts.poppins(fontSize: 12))),
+                      DataCell(Text('\$${data['net_sales'].toStringAsFixed(2)}',
+                          style: GoogleFonts.poppins(fontSize: 12))),
+                      DataCell(Text(
+                          '\$${data['total_taxes'].toStringAsFixed(2)}',
+                          style: GoogleFonts.poppins(fontSize: 12))),
+                    ],
+                  );
+                }).toList(),
+              ),
             ),
           ],
-        ),
-        body: isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildUploadSection(), // ✅ Upload section
-                    const SizedBox(height: 20),
-                    _buildDeleteSection(), // ✅ Delete section
-                    const SizedBox(height: 20),
-                    _buildFilterUI(), // ✅ Filter and view section
-                    const SizedBox(height: 20),
-                    _buildSearchBar(), // ✅ Search bar
-                    const SizedBox(height: 20),
-                    if (filteredSales.isNotEmpty) ...[
-                      _buildSalesChart(filteredSales),
-                      const SizedBox(height: 20),
-                      _buildSalesTable(filteredSales),
-                    ] else
-                      const Center(
-                        child: Text(
-                          "No sales data available for the selected filter.",
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            // Add functionality (e.g., upload report)
-          },
-          backgroundColor: Colors.orangeAccent,
-          child: const Icon(Icons.upload_file),
         ),
       ),
     );

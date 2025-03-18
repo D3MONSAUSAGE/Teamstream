@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:teamstream/services/pocketbase/auth_service.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:teamstream/services/pocketbase/auth_service.dart'; // Ensure correct import
+import 'package:teamstream/utils/constants.dart'; // Add this import for consistency
 
 class MenuDrawer extends StatelessWidget {
   const MenuDrawer({super.key});
@@ -7,7 +9,7 @@ class MenuDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Fetch the logged-in user's role
-    final String? userRole = AuthService.getUserRole();
+    final String? userRole = AuthService.getRole();
 
     // Debug: Print the role retrieved from AuthService
     print("Retrieved Role in MenuDrawer: $userRole");
@@ -56,8 +58,7 @@ class MenuDrawer extends StatelessWidget {
           _buildMenuItem(context, Icons.request_page, "Requests", '/requests'),
           _buildMenuItem(context, Icons.checklist, "Checklists", '/checklists'),
           _buildMenuItem(context, Icons.file_copy, "Documents", '/documents'),
-          _buildMenuItem(context, Icons.inventory, "Inventory",
-              '/inventory'), // Added Inventory
+          _buildMenuItem(context, Icons.inventory, "Inventory", '/inventory'),
 
           // Add Manager Dashboard option (only for Branch Managers and Admins)
           if (managerRoles.contains(userRole))

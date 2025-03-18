@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:teamstream/models/product.dart';
 import 'package:teamstream/services/pocketbase/inventory_service.dart';
 import 'package:teamstream/pages/inventory/add_product_screen.dart';
@@ -27,9 +28,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Future<void> _fetchProducts() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     final items = await InventoryService.fetchProducts();
     setState(() {
       products = items;
@@ -98,26 +97,47 @@ class _InventoryPageState extends State<InventoryPage> {
       setState(() {
         product.quantity = newQuantity;
       });
-      await InventoryService.saveInventorySnapshot(
-          updatedProduct); // Save snapshot
+      await InventoryService.saveInventorySnapshot(updatedProduct);
+      _showSnackBar('Quantity updated successfully!', isSuccess: true);
+    } else {
+      _showSnackBar('Failed to update quantity.', isError: true);
     }
+  }
+
+  void _showSnackBar(String message,
+      {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor:
+            isSuccess ? Colors.green : (isError ? Colors.red : null),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = [
-      'All',
-      ...products.map((p) => p.category).toSet().toList()
-    ];
+    final categories = ['All', ...products.map((p) => p.category).toSet()];
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Inventory'),
-        backgroundColor: Colors.blue.shade800,
-        elevation: 10,
+        title: Text(
+          'Inventory',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.blueAccent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(Icons.dashboard, color: Colors.white),
+            icon: const Icon(Icons.dashboard, color: Colors.white, size: 28),
             onPressed: () {
               Navigator.push(
                 context,
@@ -125,68 +145,107 @@ class _InventoryPageState extends State<InventoryPage> {
                     builder: (context) => DashboardScreen(products: products)),
               );
             },
+            tooltip: 'Dashboard',
           ),
           IconButton(
-            icon: Icon(Icons.refresh, color: Colors.white),
-            onPressed: _fetchProducts,
+            icon:
+                const Icon(Icons.notifications, color: Colors.white, size: 28),
+            onPressed: () {
+              _showSnackBar('Notifications clicked - functionality TBD');
+            },
+            tooltip: 'Notifications',
           ),
         ],
       ),
-      drawer: MenuDrawer(), // Use the MenuDrawer widget
+      drawer: const MenuDrawer(),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    style: GoogleFonts.poppins(),
                     decoration: InputDecoration(
                       hintText: 'Search by name or category...',
+                      hintStyle: GoogleFonts.poppins(color: Colors.grey[700]),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.blueAccent),
                       ),
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon:
+                          const Icon(Icons.search, color: Colors.blueAccent),
+                      filled: true,
+                      fillColor: Colors.grey[50],
                     ),
                     onChanged: _filterProducts,
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 PopupMenuButton<String>(
                   onSelected: _sortProducts,
                   itemBuilder: (context) => [
-                    PopupMenuItem(value: 'Name', child: Text('Sort by Name')),
                     PopupMenuItem(
-                        value: 'Category', child: Text('Sort by Category')),
+                        value: 'Name',
+                        child:
+                            Text('Sort by Name', style: GoogleFonts.poppins())),
                     PopupMenuItem(
-                        value: 'Quantity', child: Text('Sort by Quantity')),
-                    PopupMenuItem(value: 'Price', child: Text('Sort by Price')),
+                        value: 'Category',
+                        child: Text('Sort by Category',
+                            style: GoogleFonts.poppins())),
+                    PopupMenuItem(
+                        value: 'Quantity',
+                        child: Text('Sort by Quantity',
+                            style: GoogleFonts.poppins())),
+                    PopupMenuItem(
+                        value: 'Price',
+                        child: Text('Sort by Price',
+                            style: GoogleFonts.poppins())),
                   ],
-                  icon: Icon(Icons.sort, color: Colors.blue.shade800),
+                  icon: const Icon(Icons.sort, color: Colors.blueAccent),
+                  tooltip: 'Sort Options',
                 ),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: DropdownButton<String>(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: DropdownButtonFormField<String>(
               value: _selectedCategory,
               items: categories.map((category) {
                 return DropdownMenuItem(
                   value: category,
-                  child: Text(category),
+                  child: Text(category, style: GoogleFonts.poppins()),
                 );
               }).toList(),
               onChanged: (value) => _filterByCategory(value!),
+              decoration: InputDecoration(
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blueAccent),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
             ),
           ),
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.blueAccent))
                 : filteredProducts.isEmpty
-                    ? Center(child: Text('No products found.'))
+                    ? Center(
+                        child: Text('No products found.',
+                            style: GoogleFonts.poppins(
+                                fontSize: 16, color: Colors.grey[600])))
                     : ListView.builder(
+                        padding: const EdgeInsets.all(12.0),
                         itemCount: filteredProducts.length,
                         itemBuilder: (context, index) {
                           final product = filteredProducts[index];
@@ -200,13 +259,13 @@ class _InventoryPageState extends State<InventoryPage> {
         onPressed: () async {
           await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => AddProductScreen()),
+            MaterialPageRoute(builder: (context) => const AddProductScreen()),
           );
           _fetchProducts();
         },
-        child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Colors.blue.shade800,
+        backgroundColor: Colors.blueAccent,
         elevation: 5,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
@@ -215,11 +274,9 @@ class _InventoryPageState extends State<InventoryPage> {
     final isLowStock = product.quantity <= product.minQuantity;
 
     return Card(
-      elevation: 4,
-      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -227,97 +284,97 @@ class _InventoryPageState extends State<InventoryPage> {
           children: [
             if (isLowStock)
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade100,
+                  color: Colors.red[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Low Stock',
-                  style: TextStyle(
-                    color: Colors.red.shade800,
+                  style: GoogleFonts.poppins(
+                    color: Colors.red[800],
                     fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               product.name,
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                color: Colors.blue[900],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Category: ${product.category}',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade700,
-              ),
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[700]),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.inventory, size: 18, color: Colors.blue.shade800),
-                SizedBox(width: 8),
+                const Icon(Icons.inventory, size: 18, color: Colors.blueAccent),
+                const SizedBox(width: 8),
                 Text(
                   'Quantity: ${product.quantity} ${product.unit}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: GoogleFonts.poppins(
+                      fontSize: 16, color: Colors.grey[700]),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.warning, size: 18, color: Colors.orange.shade800),
-                SizedBox(width: 8),
+                const Icon(Icons.warning, size: 18, color: Colors.orange),
+                const SizedBox(width: 8),
                 Text(
                   'Min Quantity: ${product.minQuantity} ${product.unit}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: GoogleFonts.poppins(
+                      fontSize: 16, color: Colors.grey[700]),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Price: \$${product.price.toStringAsFixed(2)}',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.green.shade800,
+                color: Colors.green,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () {
-                    _updateProductQuantity(product, product.quantity - 1);
-                  },
-                  icon: Icon(Icons.remove, size: 18),
-                  label: Text('Remove'),
+                  onPressed: () =>
+                      _updateProductQuantity(product, product.quantity - 1),
+                  icon: const Icon(Icons.remove, size: 18),
+                  label: Text('Remove', style: GoogleFonts.poppins()),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade400,
+                    backgroundColor: Colors.redAccent,
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    _updateProductQuantity(product, product.quantity + 1);
-                  },
-                  icon: Icon(Icons.add, size: 18),
-                  label: Text('Add'),
+                  onPressed: () =>
+                      _updateProductQuantity(product, product.quantity + 1),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text('Add', style: GoogleFonts.poppins()),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade400,
+                    backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
               ],
@@ -326,5 +383,11 @@ class _InventoryPageState extends State<InventoryPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

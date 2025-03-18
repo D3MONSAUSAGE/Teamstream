@@ -5,24 +5,29 @@ class InventoryService {
   static const String _collection = 'products';
   static const String _historyCollection = 'history';
 
-  /// Fetch all products
+  /// 🔹 Fetch all products
   static Future<List<Product>> fetchProducts() async {
     final data = await BaseService.fetchAll(_collection);
     return data.map((item) => Product.fromJson(item)).toList();
   }
 
-  /// Fetch a single product by ID
+  /// 🔹 Fetch inventory data (Alias for fetchProducts)
+  static Future<List<Product>> fetchInventory() async {
+    return await fetchProducts();
+  }
+
+  /// 🔹 Fetch a single product by ID
   static Future<Product?> fetchProductById(String id) async {
     final data = await BaseService.fetchOne(_collection, id);
     return data != null ? Product.fromJson(data) : null;
   }
 
-  /// Add a new product
+  /// 🔹 Add a new product
   static Future<String?> addProduct(Product product) async {
     return await BaseService.create(_collection, product.toJson());
   }
 
-  /// Update an existing product
+  /// 🔹 Update an existing product
   static Future<bool> updateProduct(Product product) async {
     return await BaseService.update(
       _collection,
@@ -31,12 +36,12 @@ class InventoryService {
     );
   }
 
-  /// Delete a product by ID
+  /// 🔹 Delete a product by ID
   static Future<bool> deleteProduct(String id) async {
     return await BaseService.delete(_collection, id);
   }
 
-  /// Save inventory snapshot
+  /// 🔹 Save inventory snapshot
   static Future<void> saveInventorySnapshot(Product product) async {
     final snapshot = {
       'productId': product.id,
@@ -47,7 +52,7 @@ class InventoryService {
     await BaseService.create(_historyCollection, snapshot);
   }
 
-  /// Fetch historical data for a product
+  /// 🔹 Fetch historical data for a product
   static Future<List<Map<String, dynamic>>> fetchInventoryHistory(
       String productId) async {
     final data = await BaseService.fetchByField(
@@ -55,7 +60,7 @@ class InventoryService {
     return data;
   }
 
-  /// Deduct inventory for a product
+  /// 🔹 Deduct inventory for a product
   static Future<bool> deductInventory(String productId, int quantity) async {
     final product = await fetchProductById(productId);
     if (product != null && product.quantity >= quantity) {

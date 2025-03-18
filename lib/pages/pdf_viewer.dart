@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 class PDFViewerScreen extends StatelessWidget {
   final String pdfPath; // Local file path or Web URL
 
-  const PDFViewerScreen({Key? key, required this.pdfPath}) : super(key: key);
+  const PDFViewerScreen({super.key, required this.pdfPath});
 
   @override
   Widget build(BuildContext context) {

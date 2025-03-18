@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:teamstream/services/pocketbase/auth_service.dart';
+import 'package:teamstream/utils/constants.dart'; // ✅ Import constants.dart
 
 class PocketBaseService {
-  static final PocketBase pb = PocketBase('http://127.0.0.1:8090');
+  static final PocketBase pb = PocketBase(pocketBaseUrl); // ✅ Use the constant
 
   /// 🔹 Authenticate and log in the user, returning the user ID and role
   static Future<Map<String, String>?> login(

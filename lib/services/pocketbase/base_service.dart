@@ -4,19 +4,21 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:teamstream/services/pocketbase/auth_service.dart';
-import 'package:teamstream/utils/constants.dart'; // Import the constants file
+import 'package:teamstream/utils/constants.dart';
 
 class BaseService {
-  static final String baseUrl =
-      "$pocketBaseUrl/api"; // Use the pocketBaseUrl constant
+  static final String baseUrl = pocketBaseUrl;
 
   /// 🔹 Fetch all records from a given collection
   static Future<List<Map<String, dynamic>>> fetchAll(String collection) async {
     try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records");
-      print("🛠️ Fetching all records from $collection");
+      final url = Uri.parse("$baseUrl/api/collections/$collection/records");
+      print("🛠️ Fetching all records from URL: $url");
 
       final response = await http.get(url, headers: _getHeaders());
+
+      print(
+          "📡 Response status: ${response.statusCode}, body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -39,7 +41,7 @@ class BaseService {
   static Future<Map<String, dynamic>?> fetchOne(
       String collection, String id) async {
     try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records/$id");
+      final url = Uri.parse("$baseUrl/api/collections/$collection/records/$id");
       print("🛠️ Fetching record $id from $collection");
 
       final response = await http.get(url, headers: _getHeaders());
@@ -62,7 +64,7 @@ class BaseService {
       String collection, String field, String value) async {
     try {
       final url = Uri.parse(
-          "$baseUrl/collections/$collection/records?filter=($field='$value')");
+          "$baseUrl/api/collections/$collection/records?filter=($field='$value')");
       print("🛠️ Fetching records from $collection where $field = $value");
 
       final response = await http.get(url, headers: _getHeaders());
@@ -84,45 +86,90 @@ class BaseService {
     }
   }
 
+  /// 🔹 Fetch records with a custom filter
+  static Future<List<Map<String, dynamic>>> fetchList(String collection,
+      {String? filter, String? sort}) async {
+    try {
+      String queryParams = "";
+      if (filter != null && filter.isNotEmpty) {
+        queryParams += "?filter=$filter";
+      }
+      if (sort != null && sort.isNotEmpty) {
+        queryParams += "${queryParams.isNotEmpty ? '&' : '?'}sort=$sort";
+      }
+
+      final url =
+          Uri.parse("$baseUrl/api/collections/$collection/records$queryParams");
+      print("🛠️ Fetching records from URL: $url");
+
+      final response = await http.get(url, headers: _getHeaders());
+
+      print(
+          "📡 Response status: ${response.statusCode}, body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data.containsKey('items')) {
+          print(
+              "✅ Fetched ${data['items'].length} records from $collection with filter");
+          return List<Map<String, dynamic>>.from(data['items']);
+        } else {
+          throw Exception("Unexpected response format in fetchList()");
+        }
+      } else {
+        throw Exception("Failed to fetch records: ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Error in fetchList(): $e");
+      return [];
+    }
+  }
+
   /// 🔹 Create a new record with optional file upload
   static Future<String?> create(String collection, Map<String, dynamic> data,
       {List<dynamic>? files}) async {
     try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records");
-      print("🛠️ Creating record in $collection with data: $data");
+      final url = Uri.parse("$baseUrl/api/collections/$collection/records");
+      print("🛠️ Creating record in $collection at URL: $url with data: $data");
 
-      var request = http.MultipartRequest('POST', url);
-
-      // Ensure user ID is attached when creating records
-      String? userId = AuthService.getLoggedInUserId();
-      if (userId != null) {
-        data["submitted_by"] = userId;
-      }
-
-      data.forEach((key, value) {
-        request.fields[key] = value.toString();
-      });
-
+      http.Response response;
       if (files != null && files.isNotEmpty) {
+        var request = http.MultipartRequest('POST', url);
+        data.forEach((key, value) {
+          request.fields[key] = value.toString();
+        });
         print("🛠️ Attaching ${files.length} files to the request");
         await _attachFiles(request, files);
+        request.headers.addAll(_getHeaders());
+        final streamedResponse = await request.send();
+        response = await http.Response.fromStream(streamedResponse);
+      } else {
+        response = await http.post(
+          url,
+          headers: _getHeaders(),
+          body: jsonEncode(data),
+        );
       }
 
-      request.headers.addAll(_getHeaders());
+      print(
+          "📡 Create response status: ${response.statusCode}, body: ${response.body}");
 
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      final responseBody = response.body;
+      if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(responseBody);
-        print("✅ Record created with ID: ${jsonResponse['id']}");
-        return jsonResponse['id'];
+        final id = jsonResponse['id'] as String?;
+        if (id == null || id.isEmpty) {
+          throw Exception("No valid ID returned in response: $responseBody");
+        }
+        print("✅ Record created with ID: $id");
+        return id;
       } else {
-        throw Exception("Failed to create record: $responseBody");
+        throw Exception(
+            "Failed to create record: ${response.statusCode} - $responseBody");
       }
     } catch (e) {
       print("❌ Error in create(): $e");
-      return null;
+      rethrow;
     }
   }
 
@@ -131,20 +178,17 @@ class BaseService {
       String collection, String id, Map<String, dynamic> data,
       {List<dynamic>? files}) async {
     try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records/$id");
+      final url = Uri.parse("$baseUrl/api/collections/$collection/records/$id");
       print("🛠️ Updating record $id in $collection with data: $data");
 
       if (files != null && files.isNotEmpty) {
         var request = http.MultipartRequest('PATCH', url);
-
         data.forEach((key, value) {
           request.fields[key] = value.toString();
         });
-
         print("🛠️ Attaching ${files.length} files to the request");
         await _attachFiles(request, files);
         request.headers.addAll(_getHeaders());
-
         final response = await request.send();
         final responseBody = await response.stream.bytesToString();
 
@@ -177,7 +221,7 @@ class BaseService {
   /// 🔹 Delete a record by ID
   static Future<bool> delete(String collection, String id) async {
     try {
-      final url = Uri.parse("$baseUrl/collections/$collection/records/$id");
+      final url = Uri.parse("$baseUrl/api/collections/$collection/records/$id");
       print("🛠️ Deleting record $id from $collection");
 
       final response = await http.delete(url, headers: _getHeaders());
@@ -215,7 +259,7 @@ class BaseService {
   static Map<String, String> _getHeaders() {
     return {
       "Content-Type": "application/json",
-      "Authorization": "Bearer ${AuthService.getLoggedInUserId() ?? ''}"
+      "Authorization": "Bearer ${AuthService.getToken() ?? ''}"
     };
   }
 }

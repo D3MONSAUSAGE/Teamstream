@@ -16,20 +16,18 @@ class MilesService {
     required String payPerMile,
   }) async {
     try {
-      // Create the mileage entry first
       final record = await pb.collection('mileage').create(
         body: {
           "employee_id": employeeId,
           "miles": miles,
           "comments": comments,
-          "status": "Pending", // Default status for manager approval
+          "status": "Pending",
           "timestamp": DateTime.now().toIso8601String(),
           "pay_per_mile": payPerMile,
           "reason": reason,
         },
       );
 
-      // Upload the mileage photo
       await pb.collection('mileage').update(record.id, files: [
         MultipartFile.fromBytes('mileage_photo', image,
             filename: 'mileage_proof.jpg')
@@ -138,6 +136,28 @@ class MilesService {
       return records.map((record) => record.toJson()).toList();
     } catch (e) {
       print("❌ Error fetching employee mileage records: $e");
+      return [];
+    }
+  }
+
+  /// 🔹 Fetch mileage data for reporting (Total miles paid over time)
+  static Future<List<Map<String, dynamic>>> fetchMilesData() async {
+    try {
+      final records = await pb.collection('mileage').getFullList(
+            sort: "-timestamp",
+          );
+
+      return records.map((record) {
+        return {
+          "date": record.data["timestamp"],
+          "miles": double.tryParse(record.data["miles"].toString()) ?? 0.0,
+          "total_paid": (double.tryParse(record.data["miles"].toString()) ??
+                  0.0) *
+              (double.tryParse(record.data["pay_per_mile"].toString()) ?? 0.0),
+        };
+      }).toList();
+    } catch (e) {
+      print("❌ Error fetching mileage data: $e");
       return [];
     }
   }

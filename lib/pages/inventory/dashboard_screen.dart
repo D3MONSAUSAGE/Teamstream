@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:teamstream/models/product.dart';
 import 'package:teamstream/pages/inventory/reports_screen.dart';
-import 'dart:math'; // Import for Random
+import 'dart:math';
 
 class DashboardScreen extends StatelessWidget {
   final List<Product> products;
@@ -17,43 +18,61 @@ class DashboardScreen extends StatelessWidget {
         products.fold(0.0, (sum, p) => sum + (p.price * p.quantity));
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Dashboard'),
-        backgroundColor: Colors.blue.shade800,
-        elevation: 10,
+        title: Text(
+          'Inventory Dashboard',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.blueAccent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(Icons.assignment, color: Colors.white), // Reports icon
+            icon:
+                const Icon(Icons.notifications, color: Colors.white, size: 28),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ReportsScreen(), // Navigate to ReportsScreen
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Notifications clicked - functionality TBD',
+                      style: GoogleFonts.poppins()),
+                  backgroundColor: Colors.blueAccent,
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
                 ),
               );
             },
+            tooltip: 'Notifications',
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Inventory Overview',
-              style: TextStyle(
-                fontSize: 24,
+              style: GoogleFonts.poppins(
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                color: Colors.blue[900],
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Text(
+              'Key metrics at a glance.',
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 20),
             _buildInventoryValueCard(totalInventoryValue),
-            SizedBox(height: 16),
+            const SizedBox(height: 20),
             _buildLowStockAlertCard(lowStockProducts),
-            SizedBox(height: 16),
+            const SizedBox(height: 20),
             _buildCategoryChart(products),
           ],
         ),
@@ -63,7 +82,8 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildInventoryValueCard(double totalValue) {
     return Card(
-      elevation: 4,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -71,18 +91,19 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Text(
               'Total Inventory Value',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               '\$${totalValue.toStringAsFixed(2)}',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 24,
-                color: Colors.green.shade800,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
               ),
             ),
           ],
@@ -93,7 +114,8 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildLowStockAlertCard(List<Product> lowStockProducts) {
     return Card(
-      elevation: 4,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -101,22 +123,35 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Text(
               'Low Stock Alerts',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
               ),
             ),
-            SizedBox(height: 8),
-            if (lowStockProducts.isEmpty) Text('No low stock items.'),
+            const SizedBox(height: 12),
+            if (lowStockProducts.isEmpty)
+              Text(
+                'No low stock items.',
+                style:
+                    GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+              ),
             if (lowStockProducts.isNotEmpty)
               ...lowStockProducts.map((product) {
                 return ListTile(
-                  title: Text(product.name),
+                  leading: const Icon(Icons.warning, color: Colors.orange),
+                  title: Text(
+                    product.name,
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
                   subtitle: Text(
-                      '${product.quantity} ${product.unit} (Min: ${product.minQuantity} ${product.unit})'),
+                    '${product.quantity} ${product.unit} (Min: ${product.minQuantity} ${product.unit})',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey[700]),
+                  ),
                 );
-              }).toList(),
+              }),
           ],
         ),
       ),
@@ -136,7 +171,7 @@ class DashboardScreen extends StatelessWidget {
         value: entry.value.toDouble(),
         title: '${entry.key}\n(${entry.value})',
         radius: 60,
-        titleStyle: TextStyle(
+        titleStyle: GoogleFonts.poppins(
           fontSize: 14,
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -145,7 +180,8 @@ class DashboardScreen extends StatelessWidget {
     }).toList();
 
     return Card(
-      elevation: 4,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -153,13 +189,13 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Text(
               'Products by Category',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 12),
             SizedBox(
               height: 300,
               child: PieChart(
@@ -178,13 +214,13 @@ class DashboardScreen extends StatelessWidget {
 
   Color _getRandomColor() {
     final colors = [
-      Colors.blue.shade800,
-      Colors.green.shade800,
-      Colors.orange.shade800,
-      Colors.red.shade800,
-      Colors.purple.shade800,
-      Colors.teal.shade800,
+      Colors.blueAccent,
+      Colors.green,
+      Colors.orange,
+      Colors.redAccent,
+      Colors.purple,
+      Colors.teal,
     ];
-    return colors[Random().nextInt(colors.length)]; // Use Random from dart:math
+    return colors[Random().nextInt(colors.length)];
   }
 }

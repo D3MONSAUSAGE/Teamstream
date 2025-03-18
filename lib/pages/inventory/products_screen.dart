@@ -4,6 +4,8 @@ import 'package:teamstream/services/pocketbase/inventory_service.dart';
 import 'package:teamstream/pages/inventory/add_product_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({super.key});
+
   @override
   _ProductsScreenState createState() => _ProductsScreenState();
 }

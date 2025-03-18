@@ -1,5 +1,6 @@
-import 'package:pocketbase/pocketbase.dart';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:pocketbase/pocketbase.dart';
 
 class MyAccountService {
   final PocketBase pb;
@@ -9,19 +10,23 @@ class MyAccountService {
   // Fetch the logged-in user's profile data
   Future<Map<String, dynamic>> fetchUserProfile() async {
     try {
-      final userId = pb.authStore.model.id; // Get the logged-in user's ID
-      final record = await pb.collection('users').getOne(userId);
+      final userId = pb.authStore.model.id;
+      if (userId == null) {
+        throw Exception('User ID is null - not authenticated');
+      }
+      final record =
+          await pb.collection('users').getOne(userId, expand: 'branch');
       return record.toJson();
     } catch (e) {
-      print('Error fetching user profile: $e');
-      throw Exception('Failed to fetch user profile');
+      print('❌ Detailed error fetching user profile: $e');
+      throw Exception('Failed to fetch user profile: $e');
     }
   }
 
   // Update a specific field in the user's profile
   Future<void> updateUserProfileField(String field, dynamic value) async {
     try {
-      final userId = pb.authStore.model.id; // Get the logged-in user's ID
+      final userId = pb.authStore.model.id;
       await pb.collection('users').update(userId, body: {field: value});
     } catch (e) {
       print('Error updating user profile: $e');
@@ -32,13 +37,13 @@ class MyAccountService {
   // Update the user's profile picture
   Future<void> updateProfilePicture(String filePath) async {
     try {
-      final userId = pb.authStore.model.id; // Get the logged-in user's ID
-      final file =
-          await http.MultipartFile.fromPath('profile_picture', filePath);
+      final userId = pb.authStore.model.id;
+      final multipartFile = await http.MultipartFile.fromPath(
+          'avatar', filePath); // Changed to 'avatar'
 
       await pb.collection('users').update(
         userId,
-        files: [file],
+        files: [multipartFile],
       );
     } catch (e) {
       print('Error updating profile picture: $e');

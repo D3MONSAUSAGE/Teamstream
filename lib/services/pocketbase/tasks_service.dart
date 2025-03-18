@@ -29,19 +29,32 @@ class TasksService {
       return filteredTasks;
     } catch (e) {
       print("❌ Error fetching tasks for checklist $checklistId: $e");
-      return [];
+      rethrow; // ✅ Rethrow to allow callers to handle errors
     }
   }
 
-  /// 🔹 Update task completion status
+  /// 🔹 Update task completion status (specific method)
   static Future<void> updateTaskCompletion(
-      String taskId, bool isCompleted) async {
+      String taskId, bool isComplete) async {
     try {
       await BaseService.update(
-          collectionName, taskId, {"is_completed": isCompleted});
-      print("✅ Task $taskId marked as completed: $isCompleted");
+          collectionName, taskId, {"is_complete": isComplete});
+      print("✅ Task $taskId marked as completed: $isComplete");
+    } catch (e) {
+      print("❌ Error updating task completion $taskId: $e");
+      rethrow;
+    }
+  }
+
+  /// 🔹 Generic method to update any task fields
+  static Future<void> updateTask(
+      String taskId, Map<String, dynamic> data) async {
+    try {
+      await BaseService.update(collectionName, taskId, data);
+      print("✅ Task $taskId updated with data: $data");
     } catch (e) {
       print("❌ Error updating task $taskId: $e");
+      rethrow;
     }
   }
 
@@ -51,9 +64,9 @@ class TasksService {
       Map<String, dynamic> taskData = {
         "checklist_id": checklistId,
         "name": title,
-        "is_completed": false,
+        "is_complete": false,
         "notes": "",
-        "is_revised": false,
+        "file": null,
       };
 
       String? taskId = await BaseService.create(collectionName, taskData);
@@ -65,7 +78,7 @@ class TasksService {
       return taskId;
     } catch (e) {
       print("❌ Error creating task: $e");
-      return null;
+      rethrow;
     }
   }
 
@@ -76,17 +89,7 @@ class TasksService {
       print("✅ Updated note for task $taskId: $note");
     } catch (e) {
       print("❌ Error updating note for task $taskId: $e");
-    }
-  }
-
-  /// 🔹 Update the revision status for a given task
-  static Future<void> updateTaskRevision(String taskId, bool isRevised) async {
-    try {
-      await BaseService.update(
-          collectionName, taskId, {"is_revised": isRevised});
-      print("✅ Task $taskId marked as revised: $isRevised");
-    } catch (e) {
-      print("❌ Error updating revision for task $taskId: $e");
+      rethrow;
     }
   }
 
@@ -97,6 +100,7 @@ class TasksService {
       print("✅ Updated image for task $taskId");
     } catch (e) {
       print("❌ Error updating image for task $taskId: $e");
+      rethrow;
     }
   }
 
@@ -109,15 +113,13 @@ class TasksService {
       await BaseService.update(collectionName, taskId, {},
           files: [multipartFile]);
 
-      // Construct the URL based on your PocketBase file URL pattern.
       String fileUrl =
           "${BaseService.baseUrl}/api/files/$collectionName/$taskId/$fileName";
-
       print("✅ Updated image for task $taskId (Web): $fileUrl");
       return fileUrl;
     } catch (e) {
       print("❌ Error updating image for task $taskId on web: $e");
-      return null;
+      rethrow;
     }
   }
 }

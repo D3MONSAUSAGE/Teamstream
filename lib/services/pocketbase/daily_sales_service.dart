@@ -3,9 +3,23 @@ import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart'; // ✅ Now using Syncfusion
 import 'package:teamstream/services/pocketbase/base_service.dart';
+import 'package:teamstream/utils/constants.dart'; // ✅ Import the constants file
 
 class DailySalesService {
-  static const String collectionName = "daily_sales";
+  static final String collectionName =
+      "$pocketBaseUrl/api/collections/daily_sales";
+
+  /// 🔹 Fetch Daily Sales (for reports & dashboards)
+  static Future<List<Map<String, dynamic>>> fetchDailySales() async {
+    try {
+      final records = await BaseService.fetchAll(collectionName);
+      print("✅ Fetched ${records.length} daily sales records");
+      return records;
+    } catch (e) {
+      print("❌ Error fetching daily sales: $e");
+      return [];
+    }
+  }
 
   /// 🔹 Upload & Extract Data from PDF
   static Future<bool> uploadSalesReport(
@@ -133,15 +147,5 @@ class DailySalesService {
       print("❌ Failed to extract $key: $e");
     }
     return 0.0;
-  }
-
-  /// 🔹 Fetch All Daily Sales Data
-  static Future<List<Map<String, dynamic>>> fetchSalesData() async {
-    try {
-      return await BaseService.fetchAll(collectionName);
-    } catch (e) {
-      print("❌ Error fetching sales data: $e");
-      return [];
-    }
   }
 }

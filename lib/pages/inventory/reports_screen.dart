@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:teamstream/models/product.dart';
 import 'package:teamstream/services/pocketbase/inventory_service.dart';
+import 'package:teamstream/widgets/menu_drawer.dart';
 import 'package:csv/csv.dart';
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'dart:io';
 
@@ -25,14 +25,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _fetchProducts() async {
-    setState(() {
-      _isLoading = true;
-    });
-    final items = await InventoryService.fetchProducts();
-    setState(() {
-      products = items;
-      _isLoading = false;
-    });
+    setState(() => _isLoading = true);
+    try {
+      final items = await InventoryService.fetchProducts();
+      setState(() {
+        products = items;
+      });
+    } catch (e) {
+      print("❌ Error fetching products: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to fetch product data.")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   List<Product> getLowStockProducts() {
@@ -61,14 +67,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Future<void> exportProductsToCsv() async {
     final csvData = [
-      [
-        'Name',
-        'Category',
-        'Quantity',
-        'Unit',
-        'Price',
-        'Min Quantity'
-      ], // Header
+      ['Name', 'Category', 'Quantity', 'Unit', 'Price', 'Min Quantity'],
       ...products.map((product) => [
             product.name,
             product.category,
@@ -81,13 +80,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     final csv = const ListToCsvConverter().convert(csvData);
     final filePath =
-        '/storage/emulated/0/Download/inventory_report.csv'; // Adjust path as needed
+        '${Directory.systemTemp.path}/inventory_report.csv'; // Adjusted for better handling
 
     try {
       await File(filePath).writeAsString(csv);
-      print('CSV file saved at $filePath');
+      print('✅ CSV file saved at $filePath');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CSV file saved at: $filePath')),
+      );
     } catch (e) {
-      print('Error saving CSV file: $e');
+      print('❌ Error saving CSV file: $e');
     }
   }
 
@@ -110,7 +112,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     'Unit',
                     'Price',
                     'Min Quantity'
-                  ], // Header
+                  ],
                   ...products.map((product) => [
                         product.name,
                         product.category,
@@ -128,10 +130,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
 
     final filePath =
-        '/storage/emulated/0/Download/inventory_report.pdf'; // Adjust path as needed
+        '${Directory.systemTemp.path}/inventory_report.pdf'; // Adjusted for better handling
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
-    print('PDF file saved at $filePath');
+
+    print('✅ PDF file saved at $filePath');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('PDF file saved at: $filePath')),
+    );
   }
 
   @override
@@ -141,43 +147,44 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Reports'),
+        title: const Text('Reports'),
+        backgroundColor: Colors.blueAccent,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Inventory Reports',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+      drawer: const MenuDrawer(), // ✅ Integrated Menu Drawer for Navigation
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Inventory Reports',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLowStockReport(lowStockProducts),
+                  const SizedBox(height: 16),
+                  _buildInventorySummaryReport(inventorySummary),
+                  const SizedBox(height: 16),
+                  _buildStockLevelsChart(),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: exportProductsToCsv,
+                        child: const Text('Export as CSV'),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: exportProductsToPdf,
+                        child: const Text('Export as PDF'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 16),
-            _buildLowStockReport(lowStockProducts),
-            SizedBox(height: 16),
-            _buildInventorySummaryReport(inventorySummary),
-            SizedBox(height: 16),
-            _buildStockLevelsChart(),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: exportProductsToCsv,
-                  child: Text('Export as CSV'),
-                ),
-                SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: exportProductsToPdf,
-                  child: Text('Export as PDF'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -189,15 +196,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Low Stock Alerts',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
-            if (lowStockProducts.isEmpty) Text('No low stock items.'),
+            const Text('Low Stock Alerts',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            if (lowStockProducts.isEmpty) const Text('No low stock items.'),
             if (lowStockProducts.isNotEmpty)
               ...lowStockProducts.map((product) {
                 return ListTile(
@@ -205,7 +207,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   subtitle: Text(
                       '${product.quantity} ${product.unit} (Min: ${product.minQuantity} ${product.unit})'),
                 );
-              }).toList(),
+              }),
           ],
         ),
       ),
@@ -220,19 +222,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Inventory Summary',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
+            const Text('Inventory Summary',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             Text(
                 'Total Inventory Value: \$${summary['totalValue'].toStringAsFixed(2)}'),
             Text('Total Products: ${summary['totalProducts']}'),
-            SizedBox(height: 8),
-            Text('Categories:'),
+            const SizedBox(height: 8),
+            const Text('Categories:'),
             ...summary['categories'].entries.map((entry) {
               return Text('${entry.key}: ${entry.value}');
             }).toList(),
@@ -243,53 +240,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildStockLevelsChart() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: InventoryService.fetchInventoryHistory(
-          products.first.id), // Fetch history for the first product
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator();
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Text('No historical data available.');
-        }
+    if (products.isEmpty) {
+      return const Text('No data available for stock levels.');
+    }
 
-        final history = snapshot.data!;
-        final data = history.map((entry) {
-          return FlSpot(
-            DateTime.parse(entry['date']).millisecondsSinceEpoch.toDouble(),
-            entry['quantity'].toDouble(),
-          );
-        }).toList();
-
-        return SizedBox(
-          height: 300,
-          child: LineChart(
-            LineChartData(
-              lineBarsData: [
-                LineChartBarData(
-                  spots: data,
-                  isCurved: true,
-                  color: Colors.blue,
-                  dotData: FlDotData(show: false),
-                ),
-              ],
-              titlesData: FlTitlesData(
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (value, meta) {
-                      final date =
-                          DateTime.fromMillisecondsSinceEpoch(value.toInt());
-                      return Text('${date.day}/${date.month}');
-                    },
-                  ),
-                ),
-              ),
+    return SizedBox(
+      height: 300,
+      child: LineChart(
+        LineChartData(
+          lineBarsData: [
+            LineChartBarData(
+              spots: products.map((product) {
+                return FlSpot(product.quantity.toDouble(), product.price);
+              }).toList(),
+              isCurved: true,
+              color: Colors.blue,
+              dotData: FlDotData(show: false),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

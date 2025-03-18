@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:teamstream/services/pocketbase_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:teamstream/services/pocketbase/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -20,8 +20,7 @@ class LoginPageState extends State<LoginPage> {
       isLoading = true;
     });
 
-    // ✅ Try to log in and get user ID and role
-    final response = await PocketBaseService.login(
+    final response = await AuthService.login(
       emailController.text.trim(),
       passwordController.text.trim(),
     );
@@ -34,7 +33,6 @@ class LoginPageState extends State<LoginPage> {
       final String userId = response["userId"]!;
       final String userRole = response["role"]!;
 
-      // ✅ Set logged-in user with ID and role
       AuthService.setLoggedInUser(userId, userRole);
       print("✅ Successfully logged in. User ID: $userId | Role: $userRole");
 
@@ -42,20 +40,38 @@ class LoginPageState extends State<LoginPage> {
     } else {
       print("❌ Login failed. No user ID or role retrieved.");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid email or password")),
+        SnackBar(
+          content:
+              Text("Invalid email or password", style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red, // Match error style
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[100], // Match ManagerDashboardPage
+      appBar: AppBar(
+        title: Text(
+          'Login',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.blueAccent, // Match ManagerDashboardPage
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.fromLTRB(
+              12, 24, 12, 16), // Match ManagerDashboardPage padding
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -65,20 +81,22 @@ class LoginPageState extends State<LoginPage> {
                 width: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: theme.primaryColor.withOpacity(0.1),
+                  color: Colors.blueAccent
+                      .withOpacity(0.1), // Match ManagerDashboardPage
                   boxShadow: [
                     BoxShadow(
-                      color: theme.primaryColor.withOpacity(0.2),
+                      color: Colors.blueAccent
+                          .withOpacity(0.2), // Match ManagerDashboardPage
                       blurRadius: 10,
                       spreadRadius: 2,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.lock,
                   size: 60,
-                  color: theme.primaryColor,
+                  color: Colors.blueAccent, // Match ManagerDashboardPage
                 ),
               ),
               const SizedBox(height: 20),
@@ -86,16 +104,18 @@ class LoginPageState extends State<LoginPage> {
               // Title
               Text(
                 "Welcome Back",
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: GoogleFonts.poppins(
+                  fontSize: 26, // Match ManagerDashboardPage header
                   fontWeight: FontWeight.bold,
-                  color: theme.primaryColor,
+                  color: Colors.blue[900], // Match ManagerDashboardPage
                 ),
               ),
               const SizedBox(height: 5),
               Text(
                 "Login to continue",
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade600,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Colors.grey[600], // Match ManagerDashboardPage
                 ),
               ),
               const SizedBox(height: 30),
@@ -104,25 +124,31 @@ class LoginPageState extends State<LoginPage> {
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.email, color: theme.primaryColor),
+                  prefixIcon: const Icon(Icons.email,
+                      color: Colors.blueAccent), // Match ManagerDashboardPage
                   labelText: "Email",
-                  labelStyle: TextStyle(color: Colors.grey.shade600),
+                  labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: Colors
+                      .white, // Match ManagerDashboardPage card background
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius:
+                        BorderRadius.circular(12), // Match ManagerDashboardPage
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                        color: Colors.grey[300]!), // Match ManagerDashboardPage
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: theme.primaryColor),
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: Colors.blueAccent), // Match ManagerDashboardPage
                   ),
                 ),
                 keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.poppins(),
               ),
               const SizedBox(height: 16),
 
@@ -131,11 +157,12 @@ class LoginPageState extends State<LoginPage> {
                 controller: passwordController,
                 obscureText: obscurePassword,
                 decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.lock, color: theme.primaryColor),
+                  prefixIcon: const Icon(Icons.lock,
+                      color: Colors.blueAccent), // Match ManagerDashboardPage
                   suffixIcon: IconButton(
                     icon: Icon(
                       obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: theme.primaryColor,
+                      color: Colors.blueAccent, // Match ManagerDashboardPage
                     ),
                     onPressed: () {
                       setState(() {
@@ -144,22 +171,26 @@ class LoginPageState extends State<LoginPage> {
                     },
                   ),
                   labelText: "Password",
-                  labelStyle: TextStyle(color: Colors.grey.shade600),
+                  labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: Colors
+                      .white, // Match ManagerDashboardPage card background
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                        color: Colors.grey[300]!), // Match ManagerDashboardPage
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: theme.primaryColor),
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: Colors.blueAccent), // Match ManagerDashboardPage
                   ),
                 ),
+                style: GoogleFonts.poppins(),
               ),
               const SizedBox(height: 10),
 
@@ -167,10 +198,13 @@ class LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    _showSnackBar('Forgot Password feature coming soon!');
+                  },
                   child: Text(
                     "Forgot Password?",
-                    style: TextStyle(color: theme.primaryColor),
+                    style: GoogleFonts.poppins(
+                        color: Colors.blueAccent), // Match ManagerDashboardPage
                   ),
                 ),
               ),
@@ -182,24 +216,28 @@ class LoginPageState extends State<LoginPage> {
                 child: ElevatedButton(
                   onPressed: isLoading ? null : login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primaryColor,
+                    backgroundColor:
+                        Colors.blueAccent, // Match ManagerDashboardPage
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(
+                          12), // Match ManagerDashboardPage
                     ),
-                    elevation: 5,
-                    shadowColor: theme.primaryColor.withOpacity(0.3),
+                    elevation: 2, // Match ManagerDashboardPage card elevation
+                    shadowColor: Colors.grey
+                        .withOpacity(0.2), // Match ManagerDashboardPage
                   ),
                   child: isLoading
-                      ? CircularProgressIndicator(
+                      ? const CircularProgressIndicator(
                           color: Colors.white,
                         )
                       : Text(
                           "Login",
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.w500, // Match ManagerDashboardPage
                           ),
                         ),
                 ),
@@ -207,6 +245,22 @@ class LoginPageState extends State<LoginPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message,
+      {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor: isSuccess
+            ? Colors.green
+            : (isError
+                ? Colors.red
+                : Colors.blueAccent), // Match ManagerDashboardPage
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

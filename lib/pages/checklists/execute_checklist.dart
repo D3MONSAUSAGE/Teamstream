@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:teamstream/services/pocketbase/checklists_service.dart';
 import 'package:teamstream/services/pocketbase/tasks_service.dart';
 
@@ -23,21 +25,18 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
   @override
   void initState() {
     super.initState();
-    loadChecklist();
+    _loadChecklist();
   }
 
-  void loadChecklist() async {
+  Future<void> _loadChecklist() async {
+    setState(() => isLoading = true);
     try {
-      print("🔹 Fetching Checklist ID: ${widget.checklistId}");
-
-      Map<String, dynamic> fetchedChecklist =
-          await ChecklistsService.fetchChecklistById(widget.checklistId)
-              as Map<String, dynamic>;
-      print("✅ Loaded Checklist: $fetchedChecklist");
+      Map<String, dynamic>? fetchedChecklist =
+          await ChecklistsService.fetchChecklistById(widget.checklistId);
+      if (fetchedChecklist == null) throw Exception("Checklist not found");
 
       List<Map<String, dynamic>> fetchedTasks =
           await TasksService.fetchTasksByChecklistId(widget.checklistId);
-      print("✅ Loaded Tasks (${fetchedTasks.length}): $fetchedTasks");
 
       if (mounted) {
         setState(() {
@@ -47,70 +46,81 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
         });
       }
     } catch (e) {
-      print("❌ Error loading checklist: $e");
-      setState(() => isLoading = false);
+      _showSnackBar('Error loading checklist: $e', isError: true);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   Future<void> _pickImage(Map<String, dynamic> task) async {
-    if (kIsWeb) {
-      FilePickerResult? result =
-          await FilePicker.platform.pickFiles(type: FileType.image);
-      if (result != null && result.files.isNotEmpty) {
-        Uint8List fileBytes = result.files.first.bytes!;
-        String fileName = result.files.first.name;
-        String? fileUrl = await TasksService.updateTaskImageWeb(
-            task["id"], fileBytes, fileName);
-        if (fileUrl != null) {
-          setState(() {
-            task["file"] = fileUrl;
-          });
+    try {
+      if (kIsWeb) {
+        FilePickerResult? result =
+            await FilePicker.platform.pickFiles(type: FileType.image);
+        if (result != null && result.files.isNotEmpty) {
+          Uint8List fileBytes = result.files.first.bytes!;
+          String fileName = result.files.first.name;
+          String? fileUrl = await TasksService.updateTaskImageWeb(
+              task["id"], fileBytes, fileName);
+          if (fileUrl != null && mounted) {
+            setState(() => task["file"] = fileUrl);
+            _showSnackBar('Image uploaded successfully', isSuccess: true);
+          }
+        }
+      } else {
+        final XFile? pickedFile =
+            await _picker.pickImage(source: ImageSource.gallery);
+        if (pickedFile != null) {
+          File imageFile = File(pickedFile.path);
+          await TasksService.updateTaskImage(task["id"], imageFile);
+          if (mounted) {
+            setState(() => task["file"] = imageFile.path);
+            _showSnackBar('Image uploaded successfully', isSuccess: true);
+          }
         }
       }
-    } else {
-      final XFile? pickedFile =
-          await _picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        File imageFile = File(pickedFile.path);
-        await TasksService.updateTaskImage(task["id"], imageFile);
-        setState(() {
-          task["file"] = imageFile.path;
-        });
-      }
+    } catch (e) {
+      _showSnackBar('Error uploading image: $e', isError: true);
     }
   }
 
-  void toggleTaskCompletion(String taskId, bool? currentStatus) async {
-    bool nonNullStatus = currentStatus ?? false;
+  Future<void> _toggleTaskCompletion(String taskId, bool? currentStatus) async {
+    bool newStatus = !(currentStatus ?? false);
+    try {
+      setState(() {
+        tasks = tasks.map((task) {
+          if (task["id"] == taskId) return {...task, "is_complete": newStatus};
+          return task;
+        }).toList();
+      });
 
-    setState(() {
-      tasks = tasks.map((task) {
-        if (task["id"] == taskId) {
-          return {...task, "is_completed": !nonNullStatus};
-        }
-        return task;
-      }).toList();
-    });
-
-    await TasksService.updateTaskCompletion(taskId, !nonNullStatus);
-    checkChecklistCompletion();
+      await TasksService.updateTaskCompletion(taskId, newStatus);
+      await _checkChecklistCompletion();
+    } catch (e) {
+      _showSnackBar('Error updating task: $e', isError: true);
+      setState(() {
+        tasks = tasks.map((task) {
+          if (task["id"] == taskId) return {...task, "is_complete": !newStatus};
+          return task;
+        }).toList();
+      });
+    }
   }
 
-  void checkChecklistCompletion() async {
+  Future<void> _checkChecklistCompletion() async {
     bool allCompleted =
-        tasks.isNotEmpty && tasks.every((task) => task["is_completed"] == true);
+        tasks.isNotEmpty && tasks.every((task) => task["is_complete"] == true);
     if (allCompleted) {
-      await ChecklistsService.markChecklistCompleted(widget.checklistId);
-
-      if (checklist?["repeat_daily"] == true) {
-        await _scheduleNextDailyChecklist();
-      }
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 Checklist marked as completed!")),
-        );
+      try {
+        await ChecklistsService.markChecklistCompleted(widget.checklistId);
+        if (checklist?["repeat_daily"] == true) {
+          await _scheduleNextDailyChecklist();
+        }
+        if (mounted) {
+          Navigator.pop(context);
+          _showSnackBar('Checklist marked as completed!', isSuccess: true);
+        }
+      } catch (e) {
+        _showSnackBar('Error completing checklist: $e', isError: true);
       }
     }
   }
@@ -122,10 +132,7 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
 
       bool checklistExists =
           await ChecklistsService.checkIfChecklistExists(nextStartTime);
-      if (checklistExists) {
-        print("⚠️ Checklist for $nextStartTime already exists.");
-        return;
-      }
+      if (checklistExists) return;
 
       Map<String, dynamic> newChecklist = {
         ...checklist!,
@@ -135,7 +142,7 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
             .toIso8601String(),
         "completed": false,
         "verified_by_manager": false,
-        "executed_at": null,
+        "executed_at": "",
       };
 
       newChecklist.remove("id");
@@ -149,11 +156,10 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
         newChecklist["area"],
         tasks.map((task) => task["name"] as String).toList(),
         repeatDaily: true,
+        repeatDays: List<String>.from(newChecklist["repeat_days"] ?? []),
       );
-
-      print("✅ Scheduled next daily checklist for $nextStartTime");
     } catch (e) {
-      print("❌ Error scheduling next daily checklist: $e");
+      _showSnackBar('Error scheduling next daily checklist: $e', isError: true);
     }
   }
 
@@ -164,27 +170,60 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Add/Edit Note"),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 2,
+          title: Text(
+            'Add/Edit Note',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue[900],
+            ),
+          ),
           content: TextField(
             controller: noteController,
             maxLines: 3,
-            decoration: const InputDecoration(hintText: "Enter your note here"),
+            style: GoogleFonts.poppins(),
+            decoration: InputDecoration(
+              hintText: 'Enter your note here',
+              hintStyle: GoogleFonts.poppins(color: Colors.grey[600]),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.blueAccent),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
           ),
           actions: [
             TextButton(
-              child: const Text("Cancel"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(color: Colors.grey[700]),
+              ),
             ),
             TextButton(
-              child: const Text("Save"),
-              onPressed: () {
-                setState(() {
-                  task["notes"] = noteController.text;
-                });
-                Navigator.of(context).pop();
+              onPressed: () async {
+                try {
+                  await TasksService.updateTaskNote(
+                      task["id"], noteController.text);
+                  if (mounted) {
+                    setState(() => task["notes"] = noteController.text);
+                    _showSnackBar('Note saved successfully', isSuccess: true);
+                  }
+                  Navigator.pop(context);
+                } catch (e) {
+                  _showSnackBar('Error saving note: $e', isError: true);
+                }
               },
+              child: Text(
+                'Save',
+                style: GoogleFonts.poppins(color: Colors.blueAccent),
+              ),
             ),
           ],
         );
@@ -192,63 +231,242 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(checklist?["title"] ?? "Executing Checklist")),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : tasks.isEmpty
-              ? const Center(
-                  child: Text("⚠️ No tasks found for this checklist."))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(10),
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    var task = tasks[index];
-
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: CheckboxListTile(
-                        title: Row(
-                          children: [
-                            Expanded(
-                                child: Text(task["name"] ?? "Unnamed Task")),
-                            IconButton(
-                              icon: const Icon(Icons.note),
-                              tooltip: "Add/Edit Note",
-                              onPressed: () {
-                                _showNoteDialog(task);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.camera_alt),
-                              tooltip: "Upload Picture",
-                              onPressed: () {
-                                _pickImage(task);
-                              },
-                            ),
-                          ],
-                        ),
-                        subtitle: (task["notes"] != null &&
-                                task["notes"].toString().trim().isNotEmpty)
-                            ? Text("📝 Note: ${task["notes"]}")
-                            : null,
-                        value: task["is_completed"] ?? false,
-                        onChanged: (bool? value) {
-                          toggleTaskCompletion(
-                              task["id"], task["is_completed"]);
-                        },
-                      ),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: checkChecklistCompletion,
-        icon: const Icon(Icons.check),
-        label: const Text("Complete Checklist"),
+  void _showSnackBar(String message,
+      {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor:
+            isSuccess ? Colors.green : (isError ? Colors.red : null),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool allTasksCompleted =
+        tasks.isNotEmpty && tasks.every((task) => task["is_complete"] == true);
+
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: Text(
+          checklist?["title"] ?? 'Executing Checklist',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.blueAccent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white, size: 28),
+            onPressed: _loadChecklist,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.blueAccent))
+          : tasks.isEmpty
+              ? Center(
+                  child: Text(
+                    'No tasks found for this checklist',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    _buildHeaderSection(),
+                    const SizedBox(height: 12),
+                    _buildTasksList(),
+                  ],
+                ),
+      floatingActionButton: allTasksCompleted
+          ? FloatingActionButton.extended(
+              onPressed: _checkChecklistCompletion,
+              icon: const Icon(Icons.check, color: Colors.white),
+              label: Text(
+                'Finish Checklist',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              backgroundColor: Colors.blueAccent,
+            )
+          : null,
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Checklist Details',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (checklist != null) ...[
+              Row(
+                children: [
+                  const Icon(Icons.schedule,
+                      size: 16, color: Colors.blueAccent),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_formatTime(checklist!["start_time"])} - ${_formatTime(checklist!["end_time"])}',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.work, size: 16, color: Colors.blueAccent),
+                  const SizedBox(width: 4),
+                  Text(
+                    checklist!["shift"] ?? 'No Shift',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on,
+                      size: 16, color: Colors.blueAccent),
+                  const SizedBox(width: 4),
+                  Text(
+                    checklist!["area"] ?? 'Unknown Area',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTasksList() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tasks',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                var task = tasks[index];
+                return Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  child: CheckboxListTile(
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            task["name"] ?? 'Unnamed Task',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.note,
+                              color: Colors.blueAccent, size: 20),
+                          tooltip: 'Add/Edit Note',
+                          onPressed: () => _showNoteDialog(task),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.camera_alt,
+                              color: Colors.blueAccent, size: 20),
+                          tooltip: 'Upload Picture',
+                          onPressed: () => _pickImage(task),
+                        ),
+                      ],
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (task["notes"]?.toString().trim().isNotEmpty ??
+                            false)
+                          Text(
+                            '📝 ${task["notes"]}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        if (task["file"] != null &&
+                            task["file"].toString().isNotEmpty)
+                          Text(
+                            '📷 Image attached',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                    value: task["is_complete"] ?? false,
+                    onChanged: (bool? value) =>
+                        _toggleTaskCompletion(task["id"], task["is_complete"]),
+                    activeColor: Colors.blueAccent,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(String time) {
+    try {
+      return DateFormat.jm().format(DateTime.parse(time));
+    } catch (e) {
+      return 'Invalid Time';
+    }
   }
 }

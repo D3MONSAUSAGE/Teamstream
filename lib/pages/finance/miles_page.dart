@@ -1,11 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:teamstream/services/pocketbase/auth_service.dart';
 import 'package:teamstream/services/pocketbase/miles_service.dart';
 
 class MilesPage extends StatefulWidget {
-  const MilesPage({super.key});
+  const MilesPage({Key? key}) : super(key: key);
 
   @override
   MilesPageState createState() => MilesPageState();
@@ -16,46 +17,47 @@ class MilesPageState extends State<MilesPage> {
   final TextEditingController commentsController = TextEditingController();
   String selectedReason = "Work Assignment";
   Uint8List? selectedImage;
-  String payRatePerMile = "0.50"; // Default pay rate (fetch dynamically)
+  String payRatePerMile = "0.50"; // Default pay rate
   bool isSubmitting = false;
+  bool isDarkMode = false;
 
   final List<String> travelReasons = [
     "Work Assignment",
     "Client Visit",
-    "Other"
+    "Other",
   ];
 
   @override
   void initState() {
     super.initState();
-    // Fetch pay rate dynamically (example)
     fetchPayRate();
+    milesController
+        .addListener(() => setState(() {})); // Real-time total update
   }
 
   Future<void> fetchPayRate() async {
-    // Simulate fetching pay rate from an API or backend
-    await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-    setState(() {
-      payRatePerMile = "0.50"; // Replace with actual API call
-    });
+    try {
+      await Future.delayed(const Duration(seconds: 1)); // Simulate API call
+      setState(() =>
+          payRatePerMile = "0.50"); // Replace with actual API call if available
+    } catch (e) {
+      _showSnackBar('Error fetching pay rate: $e', isError: true);
+    }
   }
 
-  void pickImage() async {
+  Future<void> pickImage() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
-
-      if (result != null) {
-        setState(() {
-          selectedImage = result.files.first.bytes;
-        });
+      if (result != null && result.files.first.bytes != null) {
+        setState(() => selectedImage = result.files.first.bytes);
+      } else {
+        _showSnackBar('No image selected', isError: true);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to pick image: ${e.toString()}")),
-      );
+      _showSnackBar('Failed to pick image: $e', isError: true);
     }
   }
 
@@ -65,239 +67,342 @@ class MilesPageState extends State<MilesPage> {
     return miles * rate;
   }
 
-  void submitMileage() async {
+  Future<void> submitMileage() async {
     double miles = double.tryParse(milesController.text) ?? 0;
     if (miles <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid number of miles.")),
-      );
+      _showSnackBar('Please enter a valid number of miles', isError: true);
       return;
     }
 
     if (selectedReason.isEmpty || selectedImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text("Please fill all required fields and upload an image.")),
-      );
+      _showSnackBar('Please select a reason and upload an image',
+          isError: true);
       return;
     }
-
-    setState(() {
-      isSubmitting = true;
-    });
 
     String? userId = AuthService.getLoggedInUserId();
     if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in!")),
-      );
+      _showSnackBar('User not logged in', isError: true);
       return;
     }
 
-    bool success = await MilesService.submitMileage(
-      employeeId: userId,
-      miles: milesController.text.trim(),
-      comments: commentsController.text.trim(),
-      reason: selectedReason,
-      image: selectedImage!,
-      payPerMile: payRatePerMile,
-    );
+    setState(() => isSubmitting = true);
 
-    setState(() {
-      isSubmitting = false;
-    });
+    try {
+      bool success = await MilesService.submitMileage(
+        employeeId: userId,
+        miles: milesController.text.trim(),
+        comments: commentsController.text.trim(),
+        reason: selectedReason,
+        image: selectedImage!,
+        payPerMile: payRatePerMile,
+      );
 
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Mileage submitted successfully!")),
-      );
-      Navigator.pop(context); // Go back to the previous page
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error submitting mileage. Try again!")),
-      );
+      if (success) {
+        _showSnackBar('Mileage submitted successfully', isSuccess: true);
+        Navigator.pop(context);
+      } else {
+        _showSnackBar('Error submitting mileage', isError: true);
+      }
+    } catch (e) {
+      _showSnackBar('Submission failed: $e', isError: true);
+    } finally {
+      setState(() => isSubmitting = false);
     }
+  }
+
+  void _showSnackBar(String message,
+      {bool isSuccess = false, bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor:
+            isSuccess ? Colors.green : (isError ? Colors.red : null),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    milesController.dispose();
+    commentsController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Submit Mileage"),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Pay Rate Display
-              Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.attach_money, color: Colors.green),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Pay Rate Per Mile: \$$payRatePerMile",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Miles Input
-              TextField(
-                controller: milesController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: "Miles Traveled",
-                  prefixIcon: const Icon(Icons.directions_car),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
-                onChanged: (value) {
-                  setState(() {}); // Update total pay in real-time
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Total Pay Display
-              Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.money, color: Colors.blue),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Total Pay: \$${calculateTotalPay().toStringAsFixed(2)}",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Reason Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedReason,
-                items: travelReasons
-                    .map((reason) => DropdownMenuItem(
-                          value: reason,
-                          child: Text(reason),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedReason = value!;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: "Reason for Travel",
-                  prefixIcon: const Icon(Icons.work),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Comments Input
-              TextField(
-                controller: commentsController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: "Additional Comments",
-                  prefixIcon: const Icon(Icons.comment),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Image Upload
-              Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      if (selectedImage != null)
-                        Image.memory(
-                          selectedImage!,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
-                      const SizedBox(height: 10),
-                      ElevatedButton.icon(
-                        onPressed: pickImage,
-                        icon: const Icon(Icons.camera_alt),
-                        label: Text(selectedImage == null
-                            ? "Upload Receipt/Proof"
-                            : "Change Image"),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSubmitting ? null : submitMileage,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          "Submit Mileage",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
+    return Theme(
+      data: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: Text(
+            'Submit Mileage',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              fontSize: 20,
+            ),
           ),
+          backgroundColor: Colors.blueAccent,
+          elevation: 0,
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(
+                isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                color: Colors.white,
+                size: 28,
+              ),
+              onPressed: () => setState(() => isDarkMode = !isDarkMode),
+              tooltip: 'Toggle Dark Mode',
+            ),
+          ],
         ),
+        body: isSubmitting
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent))
+            : ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  _buildHeaderSection(),
+                  const SizedBox(height: 12),
+                  _buildPayRateCard(),
+                  const SizedBox(height: 12),
+                  _buildMileageForm(),
+                  const SizedBox(height: 12),
+                  _buildImageUploadCard(),
+                  const SizedBox(height: 12),
+                  _buildSubmitButton(),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Mileage Tracker',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Submit your travel expenses',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPayRateCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.attach_money, color: Colors.green, size: 24),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pay Rate Per Mile',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[900],
+                  ),
+                ),
+                Text(
+                  '\$$payRatePerMile',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMileageForm() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Mileage Details',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: milesController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Miles Traveled',
+                labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
+                prefixIcon:
+                    const Icon(Icons.directions_car, color: Colors.blueAccent),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              style: GoogleFonts.poppins(),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Total Pay: \$${calculateTotalPay().toStringAsFixed(2)}',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedReason,
+              items: travelReasons
+                  .map((reason) => DropdownMenuItem(
+                        value: reason,
+                        child: Text(reason, style: GoogleFonts.poppins()),
+                      ))
+                  .toList(),
+              onChanged: (value) => setState(() => selectedReason = value!),
+              decoration: InputDecoration(
+                labelText: 'Reason for Travel',
+                labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
+                prefixIcon: const Icon(Icons.work, color: Colors.blueAccent),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: commentsController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Additional Comments',
+                labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
+                prefixIcon: const Icon(Icons.comment, color: Colors.blueAccent),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              style: GoogleFonts.poppins(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageUploadCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Upload Proof',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (selectedImage != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(
+                  selectedImage!,
+                  height: 100,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: pickImage,
+                icon: const Icon(Icons.camera_alt, size: 20),
+                label: Text(
+                  selectedImage == null ? 'Upload Receipt' : 'Change Image',
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                  foregroundColor: Colors.blue[900],
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: isSubmitting ? null : submitMileage,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueAccent,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: isSubmitting
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Text(
+                'Submit Mileage',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
