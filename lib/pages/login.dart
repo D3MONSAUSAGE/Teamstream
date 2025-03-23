@@ -20,33 +20,39 @@ class LoginPageState extends State<LoginPage> {
       isLoading = true;
     });
 
-    final response = await AuthService.login(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-    );
+    try {
+      final response = await AuthService.login(
+        emailController.text.trim(),
+        passwordController.text.trim(),
+      );
 
-    setState(() {
-      isLoading = false;
-    });
+      setState(() {
+        isLoading = false;
+      });
 
-    if (response != null) {
-      final String userId = response["userId"]!;
-      final String userRole = response["role"]!;
+      if (response != null) {
+        final String userId = response["userId"]!;
+        final String userRole = response["role"]!;
 
-      AuthService.setLoggedInUser(userId, userRole);
-      print("✅ Successfully logged in. User ID: $userId | Role: $userRole");
+        AuthService.setLoggedInUser(userId, userRole, token: response["token"]);
+        print("✅ Successfully logged in. User ID: $userId | Role: $userRole");
 
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    } else {
-      print("❌ Login failed. No user ID or role retrieved.");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text("Invalid email or password", style: GoogleFonts.poppins()),
-          backgroundColor: Colors.red, // Match error style
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        print("❌ Login failed. No user ID or role retrieved.");
+        _showSnackBar(
+          "Invalid email or password",
+          isError: true,
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print("❌ Login error: $e");
+      _showSnackBar(
+        "Login failed: $e",
+        isError: true,
       );
     }
   }
@@ -54,7 +60,7 @@ class LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Match ManagerDashboardPage
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text(
           'Login',
@@ -65,13 +71,12 @@ class LoginPageState extends State<LoginPage> {
           ),
         ),
         elevation: 0,
-        backgroundColor: Colors.blueAccent, // Match ManagerDashboardPage
+        backgroundColor: Colors.blueAccent,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-              12, 24, 12, 16), // Match ManagerDashboardPage padding
+          padding: const EdgeInsets.fromLTRB(12, 24, 12, 16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -81,12 +86,10 @@ class LoginPageState extends State<LoginPage> {
                 width: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.blueAccent
-                      .withOpacity(0.1), // Match ManagerDashboardPage
+                  color: Colors.blueAccent.withOpacity(0.1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blueAccent
-                          .withOpacity(0.2), // Match ManagerDashboardPage
+                      color: Colors.blueAccent.withOpacity(0.2),
                       blurRadius: 10,
                       spreadRadius: 2,
                       offset: const Offset(0, 4),
@@ -96,7 +99,7 @@ class LoginPageState extends State<LoginPage> {
                 child: const Icon(
                   Icons.lock,
                   size: 60,
-                  color: Colors.blueAccent, // Match ManagerDashboardPage
+                  color: Colors.blueAccent,
                 ),
               ),
               const SizedBox(height: 20),
@@ -105,9 +108,9 @@ class LoginPageState extends State<LoginPage> {
               Text(
                 "Welcome Back",
                 style: GoogleFonts.poppins(
-                  fontSize: 26, // Match ManagerDashboardPage header
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue[900], // Match ManagerDashboardPage
+                  color: Colors.blue[900],
                 ),
               ),
               const SizedBox(height: 5),
@@ -115,7 +118,7 @@ class LoginPageState extends State<LoginPage> {
                 "Login to continue",
                 style: GoogleFonts.poppins(
                   fontSize: 16,
-                  color: Colors.grey[600], // Match ManagerDashboardPage
+                  color: Colors.grey[600],
                 ),
               ),
               const SizedBox(height: 30),
@@ -124,27 +127,22 @@ class LoginPageState extends State<LoginPage> {
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.email,
-                      color: Colors.blueAccent), // Match ManagerDashboardPage
+                  prefixIcon: const Icon(Icons.email, color: Colors.blueAccent),
                   labelText: "Email",
                   labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
                   filled: true,
-                  fillColor: Colors
-                      .white, // Match ManagerDashboardPage card background
+                  fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(12), // Match ManagerDashboardPage
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: Colors.grey[300]!), // Match ManagerDashboardPage
+                    borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: Colors.blueAccent), // Match ManagerDashboardPage
+                    borderSide: const BorderSide(color: Colors.blueAccent),
                   ),
                 ),
                 keyboardType: TextInputType.emailAddress,
@@ -157,12 +155,11 @@ class LoginPageState extends State<LoginPage> {
                 controller: passwordController,
                 obscureText: obscurePassword,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.lock,
-                      color: Colors.blueAccent), // Match ManagerDashboardPage
+                  prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
                   suffixIcon: IconButton(
                     icon: Icon(
                       obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.blueAccent, // Match ManagerDashboardPage
+                      color: Colors.blueAccent,
                     ),
                     onPressed: () {
                       setState(() {
@@ -173,21 +170,18 @@ class LoginPageState extends State<LoginPage> {
                   labelText: "Password",
                   labelStyle: GoogleFonts.poppins(color: Colors.grey[700]),
                   filled: true,
-                  fillColor: Colors
-                      .white, // Match ManagerDashboardPage card background
+                  fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: Colors.grey[300]!), // Match ManagerDashboardPage
+                    borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: Colors.blueAccent), // Match ManagerDashboardPage
+                    borderSide: const BorderSide(color: Colors.blueAccent),
                   ),
                 ),
                 style: GoogleFonts.poppins(),
@@ -203,8 +197,7 @@ class LoginPageState extends State<LoginPage> {
                   },
                   child: Text(
                     "Forgot Password?",
-                    style: GoogleFonts.poppins(
-                        color: Colors.blueAccent), // Match ManagerDashboardPage
+                    style: GoogleFonts.poppins(color: Colors.blueAccent),
                   ),
                 ),
               ),
@@ -216,16 +209,13 @@ class LoginPageState extends State<LoginPage> {
                 child: ElevatedButton(
                   onPressed: isLoading ? null : login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.blueAccent, // Match ManagerDashboardPage
+                    backgroundColor: Colors.blueAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                          12), // Match ManagerDashboardPage
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 2, // Match ManagerDashboardPage card elevation
-                    shadowColor: Colors.grey
-                        .withOpacity(0.2), // Match ManagerDashboardPage
+                    elevation: 2,
+                    shadowColor: Colors.grey.withOpacity(0.2),
                   ),
                   child: isLoading
                       ? const CircularProgressIndicator(
@@ -236,8 +226,7 @@ class LoginPageState extends State<LoginPage> {
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 16,
-                            fontWeight:
-                                FontWeight.w500, // Match ManagerDashboardPage
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                 ),
@@ -256,9 +245,7 @@ class LoginPageState extends State<LoginPage> {
         content: Text(message, style: GoogleFonts.poppins()),
         backgroundColor: isSuccess
             ? Colors.green
-            : (isError
-                ? Colors.red
-                : Colors.blueAccent), // Match ManagerDashboardPage
+            : (isError ? Colors.red : Colors.blueAccent),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),

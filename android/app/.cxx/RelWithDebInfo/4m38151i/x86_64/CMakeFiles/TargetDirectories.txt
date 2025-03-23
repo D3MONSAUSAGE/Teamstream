@@ -1,0 +1,2 @@
+C:/Users/ariel/teamstream/Teamstream1/android/app/.cxx/RelWithDebInfo/4m38151i/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/ariel/teamstream/Teamstream1/android/app/.cxx/RelWithDebInfo/4m38151i/x86_64/CMakeFiles/rebuild_cache.dir

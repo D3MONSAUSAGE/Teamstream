@@ -6,7 +6,7 @@ import 'package:teamstream/widgets/menu_drawer.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:teamstream/pages/documents/document_viewer.dart';
+import 'package:teamstream/pages/documents/pdf_viewer_screen.dart'; // Updated import
 import 'package:file_picker/file_picker.dart';
 
 class DocumentsPage extends StatefulWidget {
@@ -42,7 +42,8 @@ class _DocumentsPageState extends State<DocumentsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DocumentViewer(fileUrl: fileUrl, title: fileName),
+        builder: (context) =>
+            PDFViewerScreen(pdfPath: fileUrl), // Updated to use PDFViewerScreen
       ),
     );
   }

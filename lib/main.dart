@@ -11,9 +11,10 @@ import 'package:teamstream/pages/requests_page.dart';
 import 'package:teamstream/pages/documents/documents.dart';
 import 'package:teamstream/pages/checklists/checklists_page.dart';
 import 'package:teamstream/pages/manager_dashboard/manager_dashboard.dart';
-import 'package:teamstream/pages/manage_time/timecard_page.dart'; // Updated import
+import 'package:teamstream/pages/manage_time/timecard_page.dart';
 import 'package:teamstream/pages/inventory/inventory.dart';
 import 'package:teamstream/pages/schedules/schedules_page.dart';
+import 'package:teamstream/pages/warnings_page.dart'; // Added import for WarningsPage
 import 'package:teamstream/utils/theme.dart';
 import 'package:teamstream/utils/constants.dart';
 import 'package:teamstream/services/pocketbase/auth_service.dart';
@@ -53,7 +54,9 @@ class MyApp extends StatelessWidget {
           '/inventory': (context) => const InventoryPage(),
           '/manager_dashboard': (context) => const ManagerDashboardPage(),
           '/schedules': (context) => const SchedulesPage(),
-          '/timecard': (context) => const TimecardPage(), // Updated route
+          '/timecard': (context) => const TimecardPage(),
+          '/warnings': (context) =>
+              const WarningsPage(), // Added route for WarningsPage
         },
       ),
     );

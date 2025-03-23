@@ -4,7 +4,7 @@ import 'package:teamstream/widgets/menu_drawer.dart';
 import 'package:teamstream/pages/finance/invoice_list.dart';
 import 'package:teamstream/pages/finance/invoice_upload.dart';
 import 'package:teamstream/pages/finance/expense_tracking.dart';
-import 'package:teamstream/pages/finance/sales_reports.dart';
+import 'package:teamstream/pages/finance/daily_sales_reports.dart';
 import 'package:teamstream/pages/finance/miles_page.dart';
 
 class FinancePage extends StatefulWidget {
@@ -60,7 +60,7 @@ class FinancePageState extends State<FinancePage> {
               context,
               title: 'Daily Sales Reports',
               icon: Icons.show_chart,
-              page: const SalesReportsPage(),
+              page: const DailySalesReportsPage(), // Corrected class name
             ),
             _buildFinanceOption(
               context,
@@ -137,7 +137,7 @@ class FinancePageState extends State<FinancePage> {
           spacing: 8,
           runSpacing: 8,
           children: options.map((option) {
-            return Container(
+            return SizedBox(
               width: MediaQuery.of(context).size.width * 0.46,
               child: option,
             );

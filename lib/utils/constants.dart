@@ -10,7 +10,7 @@ String getPocketBaseUrl() {
   } else if (isEmulator) {
     return 'http://10.0.2.2:8090'; // For Android emulator
   } else {
-    return 'http://192.168.1.100:8090'; // For real device (replace with your machine's IP)
+    return 'http://192.168.1.100:8090'; // For real device (use your machine's IP)
   }
 }
 

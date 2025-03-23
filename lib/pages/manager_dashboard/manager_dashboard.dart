@@ -132,7 +132,7 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                     _buildDashboardCard(
                       context,
                       "Daily Sales Report",
-                      const DailySalesReportPage(),
+                      const DailySalesReportsPage(),
                       Icons.attach_money_outlined,
                     ),
                     _buildDashboardCard(

@@ -88,14 +88,19 @@ class BaseService {
 
   /// 🔹 Fetch records with a custom filter
   static Future<List<Map<String, dynamic>>> fetchList(String collection,
-      {String? filter, String? sort}) async {
+      {String? filter, String? sort, int? perPage}) async {
     try {
       String queryParams = "";
       if (filter != null && filter.isNotEmpty) {
-        queryParams += "?filter=$filter";
+        final encodedFilter = Uri.encodeQueryComponent(filter);
+        queryParams += "?filter=$encodedFilter";
       }
       if (sort != null && sort.isNotEmpty) {
-        queryParams += "${queryParams.isNotEmpty ? '&' : '?'}sort=$sort";
+        final encodedSort = Uri.encodeQueryComponent(sort);
+        queryParams += "${queryParams.isNotEmpty ? '&' : '?'}sort=$encodedSort";
+      }
+      if (perPage != null) {
+        queryParams += "${queryParams.isNotEmpty ? '&' : '?'}perPage=$perPage";
       }
 
       final url =

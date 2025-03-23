@@ -6,7 +6,7 @@ import 'package:teamstream/services/pocketbase/auth_service.dart';
 import 'package:teamstream/services/pocketbase/miles_service.dart';
 
 class MilesPage extends StatefulWidget {
-  const MilesPage({Key? key}) : super(key: key);
+  const MilesPage({super.key});
 
   @override
   MilesPageState createState() => MilesPageState();
@@ -17,7 +17,7 @@ class MilesPageState extends State<MilesPage> {
   final TextEditingController commentsController = TextEditingController();
   String selectedReason = "Work Assignment";
   Uint8List? selectedImage;
-  String payRatePerMile = "0.50"; // Default pay rate
+  String payRatePerMile = "0.50"; // Initial value, will be updated
   bool isSubmitting = false;
   bool isDarkMode = false;
 
@@ -37,9 +37,8 @@ class MilesPageState extends State<MilesPage> {
 
   Future<void> fetchPayRate() async {
     try {
-      await Future.delayed(const Duration(seconds: 1)); // Simulate API call
-      setState(() =>
-          payRatePerMile = "0.50"); // Replace with actual API call if available
+      final rate = await MilesService.fetchPayRate();
+      setState(() => payRatePerMile = rate);
     } catch (e) {
       _showSnackBar('Error fetching pay rate: $e', isError: true);
     }
@@ -115,10 +114,12 @@ class MilesPageState extends State<MilesPage> {
       {bool isSuccess = false, bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor:
-            isSuccess ? Colors.green : (isError ? Colors.red : null),
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor: isSuccess
+            ? Colors.green
+            : (isError ? Colors.red : Colors.blueAccent),
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -148,7 +149,13 @@ class MilesPageState extends State<MilesPage> {
           backgroundColor: Colors.blueAccent,
           elevation: 0,
           centerTitle: true,
+          iconTheme: const IconThemeData(color: Colors.white),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 28),
+              onPressed: fetchPayRate,
+              tooltip: 'Refresh Pay Rate',
+            ),
             IconButton(
               icon: Icon(
                 isDarkMode ? Icons.light_mode : Icons.dark_mode,
