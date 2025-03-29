@@ -127,6 +127,21 @@ class ChecklistsPageState extends State<ChecklistsPage> {
     }
   }
 
+  void _navigateToEditChecklist(Map<String, dynamic> checklist) {
+    if (RoleService.canEditChecklists()) {
+      showDialog(
+        context: context,
+        builder: (context) => AddChecklistDialog(
+          onChecklistCreated: _loadChecklists,
+          checklistToEdit: checklist,
+        ),
+      );
+    } else {
+      _showSnackBar('You don’t have permission to edit checklists.',
+          isError: true);
+    }
+  }
+
   void _showSnackBar(String message,
       {bool isSuccess = false, bool isError = false, bool isWarning = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -171,11 +186,6 @@ class ChecklistsPageState extends State<ChecklistsPage> {
                 const Icon(Icons.calendar_today, color: Colors.white, size: 28),
             onPressed: _pickDate,
             tooltip: 'Select Date',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white, size: 28),
-            onPressed: _loadChecklists,
-            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -416,6 +426,13 @@ class ChecklistsPageState extends State<ChecklistsPage> {
                       if (!isCompleted)
                         const Icon(Icons.circle_outlined,
                             color: Colors.grey, size: 20),
+                      if (RoleService.canEditChecklists())
+                        IconButton(
+                          icon: const Icon(Icons.edit,
+                              color: Colors.blueAccent, size: 20),
+                          onPressed: () => _navigateToEditChecklist(checklist),
+                          tooltip: 'Edit Checklist',
+                        ),
                     ],
                   ),
                 ],

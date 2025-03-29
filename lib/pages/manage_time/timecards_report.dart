@@ -30,8 +30,8 @@ class _TimecardsReportPageState extends State<TimecardsReportPage> {
         throw Exception("User not logged in");
       }
 
-      // Fetch clock-ins from PocketBase
-      final result = await BaseService.fetchAll(
+      // Fetch clock-ins from PocketBase using fetchList instead of fetchAll
+      final result = await BaseService.fetchList(
         ClockInService.clockInsCollection,
         filter: 'user = "$userId"',
         sort: '-created',

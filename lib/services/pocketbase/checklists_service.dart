@@ -30,8 +30,108 @@ class ChecklistsService {
   }) async {
     try {
       bool hasPermission = RoleService.canCreateChecklists();
-      if (!hasPermission)
-        throw Exception("❌ Access Denied: User lacks permission.");
+      if (!hasPermission) {
+        throw Exception(
+            "❌ Access Denied: User lacks permission to create checklists.");
+      }
+      if (title.isEmpty) throw Exception("❌ Title is required.");
+      if (shift.isEmpty) throw Exception("❌ Shift is required.");
+      if (startTime.isEmpty) throw Exception("❌ Start time is required.");
+      if (area.isEmpty) throw Exception("❌ Area is required.");
+      if (tasks.isEmpty) throw Exception("❌ At least one task is required.");
+
+      const validShifts = [
+        "Morning",
+        "Afternoon",
+        "Night",
+        "Mid Shift",
+        "Split Shift"
+      ];
+      const validAreas = ["Kitchen", "Customer Service"];
+      if (!validShifts.contains(shift)) {
+        throw Exception(
+            "❌ Invalid shift value: $shift. Must be one of $validShifts");
+      }
+      if (!validAreas.contains(area)) {
+        throw Exception(
+            "❌ Invalid area value: $area. Must be one of $validAreas");
+      }
+
+      Map<String, dynamic> checklistBody = {
+        "title": title,
+        "description": description,
+        "shift": shift,
+        "start_time": startTime,
+        "end_time": endTime.isEmpty ? "" : endTime,
+        "area": area,
+        "completed": false,
+        "verified_by_manager": false,
+        "executed_at": null,
+        "repeat_daily": repeatDaily,
+        "repeat_days": repeatDays,
+      };
+
+      print("📩 Creating checklist with body: $checklistBody");
+      String? checklistId =
+          await BaseService.create(checklistCollection, checklistBody);
+
+      if (checklistId == null || checklistId.isEmpty) {
+        throw Exception("❌ Failed to create checklist: No valid ID returned.");
+      }
+      print("✅ Checklist created with ID: $checklistId");
+
+      // Create tasks and ensure they are linked to the checklist
+      List<String> createdTaskIds = [];
+      for (String taskName in tasks) {
+        Map<String, dynamic> taskBody = {
+          "checklist_id": checklistId,
+          "name": taskName,
+          "is_complete": false,
+          "notes": "",
+          "file": null,
+        };
+        print("📩 Attempting to create task: $taskBody");
+        String? taskId = await BaseService.create(tasksCollection, taskBody);
+        if (taskId == null || taskId.isEmpty) {
+          print(
+              "❌ Error: Failed to create task '$taskName' for checklist $checklistId");
+          throw Exception("Failed to create task: $taskName");
+        } else {
+          print("✅ Task created with ID: $taskId for checklist $checklistId");
+          createdTaskIds.add(taskId);
+        }
+      }
+
+      // Verify tasks were created
+      if (createdTaskIds.length != tasks.length) {
+        throw Exception(
+            "❌ Task creation incomplete: Expected ${tasks.length} tasks, created ${createdTaskIds.length}");
+      }
+
+      return checklistId;
+    } catch (e) {
+      print("❌ Error creating checklist: $e");
+      rethrow;
+    }
+  }
+
+  static Future<void> updateChecklist(
+    String checklistId,
+    String title,
+    String description,
+    String shift,
+    String startTime,
+    String endTime,
+    String area,
+    List<Map<String, dynamic>> tasks, {
+    bool repeatDaily = false,
+    List<String> repeatDays = const [],
+  }) async {
+    try {
+      bool hasPermission = RoleService.canEditChecklists();
+      if (!hasPermission) {
+        throw Exception("❌ Access Denied: User lacks permission to edit.");
+      }
       if (title.isEmpty) throw Exception("❌ Title is required.");
       if (shift.isEmpty) throw Exception("❌ Shift is required.");
       if (startTime.isEmpty) throw Exception("❌ Start time is required.");
@@ -55,49 +155,22 @@ class ChecklistsService {
       }
 
       Map<String, dynamic> checklistBody = {
-        "title": title.toString(),
-        "description": description.toString(),
+        "title": title,
+        "description": description,
         "shift": shift,
         "start_time": startTime,
-        "end_time": endTime.isEmpty ? "" : endTime,
+        "end_time": endTime,
         "area": area,
-        "completed": false,
-        "verified_by_manager": false,
-        "executed_at": null,
         "repeat_daily": repeatDaily,
         "repeat_days": repeatDays,
       };
 
-      print("📩 Creating checklist with body: $checklistBody");
-      String? checklistId =
-          await BaseService.create(checklistCollection, checklistBody);
+      print("📩 Updating checklist $checklistId with body: $checklistBody");
+      await BaseService.update(checklistCollection, checklistId, checklistBody);
 
-      if (checklistId == null || checklistId.isEmpty) {
-        throw Exception("❌ Failed to create checklist: No valid ID returned.");
-      }
-      print("✅ Checklist created with ID: $checklistId");
-
-      for (String taskName in tasks) {
-        Map<String, dynamic> taskBody = {
-          "checklist_id": checklistId,
-          "name": taskName,
-          "is_complete": false,
-          "notes": "",
-          "file": null,
-        };
-        print("📩 Creating task: $taskBody");
-        String? taskId = await BaseService.create(tasksCollection, taskBody);
-        if (taskId == null) {
-          print(
-              "⚠️ Warning: Failed to create task '$taskName' for checklist $checklistId");
-        } else {
-          print("✅ Task created with ID: $taskId");
-        }
-      }
-
-      return checklistId;
+      print("✅ Checklist $checklistId updated successfully");
     } catch (e) {
-      print("❌ Error creating checklist: $e");
+      print("❌ Error updating checklist: $e");
       rethrow;
     }
   }

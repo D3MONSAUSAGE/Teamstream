@@ -129,25 +129,46 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
     try {
       DateTime startTime = DateTime.parse(checklist!["start_time"]);
       DateTime nextStartTime = startTime.add(const Duration(days: 1));
+      List<String> repeatDays =
+          List<String>.from(checklist!["repeat_days"] ?? []);
+      String nextDayName =
+          DateFormat('EEEE').format(nextStartTime); // e.g., "Monday"
 
+      // Only schedule if the next day is in repeat_days (or if repeat_days is empty, assume daily)
+      if (repeatDays.isNotEmpty && !repeatDays.contains(nextDayName)) {
+        print(
+            "ℹ️ Next day ($nextDayName) not in repeat_days ($repeatDays). Skipping.");
+        return;
+      }
+
+      // Check if a checklist already exists for the next start time
       bool checklistExists =
           await ChecklistsService.checkIfChecklistExists(nextStartTime);
-      if (checklistExists) return;
+      if (checklistExists) {
+        print(
+            "ℹ️ Checklist already exists for $nextStartTime. Skipping creation.");
+        return;
+      }
 
+      // Prepare new checklist data with reset fields
       Map<String, dynamic> newChecklist = {
-        ...checklist!,
+        "title": checklist!["title"],
+        "description": checklist!["description"],
+        "shift": checklist!["shift"],
         "start_time": nextStartTime.toIso8601String(),
         "end_time": DateTime(nextStartTime.year, nextStartTime.month,
                 nextStartTime.day, startTime.hour, startTime.minute)
             .toIso8601String(),
+        "area": checklist!["area"],
         "completed": false,
         "verified_by_manager": false,
         "executed_at": "",
+        "repeat_daily": checklist!["repeat_daily"],
+        "repeat_days": repeatDays,
       };
 
-      newChecklist.remove("id");
-
-      await ChecklistsService.createChecklist(
+      // Create the new checklist
+      String newChecklistId = await ChecklistsService.createChecklist(
         newChecklist["title"],
         newChecklist["description"],
         newChecklist["shift"],
@@ -155,9 +176,12 @@ class ExecuteChecklistPageState extends State<ExecuteChecklistPage> {
         newChecklist["end_time"],
         newChecklist["area"],
         tasks.map((task) => task["name"] as String).toList(),
-        repeatDaily: true,
-        repeatDays: List<String>.from(newChecklist["repeat_days"] ?? []),
+        repeatDaily: newChecklist["repeat_daily"],
+        repeatDays: repeatDays,
       );
+
+      print(
+          "✅ Scheduled new checklist with ID: $newChecklistId for $nextStartTime");
     } catch (e) {
       _showSnackBar('Error scheduling next daily checklist: $e', isError: true);
     }

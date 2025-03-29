@@ -94,4 +94,20 @@ class RoleService {
     print("🛠️ Checking verify permission for role '$role': $canVerify");
     return canVerify;
   }
+
+  /// 🔹 Check if the user can edit checklists
+  static bool canEditChecklists() {
+    final role = AuthService.getRole();
+    if (role == null) {
+      print("❌ No role found for current user");
+      return false;
+    }
+    bool canEdit = role == shiftLeader ||
+        role == kitchenLeader ||
+        role == hospitalityManager ||
+        role == branchManager ||
+        role == admin;
+    print("🛠️ Checking edit permission for role '$role': $canEdit");
+    return canEdit;
+  }
 }

@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:teamstream/services/pocketbase/checklists_service.dart';
-import 'package:teamstream/services/pocketbase/auth_service.dart'; // Assuming this exists
+import 'package:teamstream/services/pocketbase/auth_service.dart';
+import 'package:teamstream/services/pocketbase/tasks_service.dart';
 
 class AddChecklistDialog extends StatefulWidget {
   final VoidCallback onChecklistCreated;
+  final Map<String, dynamic>? checklistToEdit;
 
-  const AddChecklistDialog({super.key, required this.onChecklistCreated});
+  const AddChecklistDialog({
+    super.key,
+    required this.onChecklistCreated,
+    this.checklistToEdit,
+  });
 
   @override
   AddChecklistDialogState createState() => AddChecklistDialogState();
@@ -28,7 +34,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
   final List<String> areas = ["Kitchen", "Customer Service"];
   String selectedShift = "Morning";
   String selectedArea = "Kitchen";
-  List<String> tasks = [];
+  List<Map<String, dynamic>> tasks = [];
   DateTime? startTime;
   DateTime? endTime;
   bool repeatDaily = false;
@@ -53,23 +59,22 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
     "Sunday": false,
   };
 
-  String? currentUserRole; // To store and display the role
+  String? currentUserRole;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserRole(); // Check role on dialog load
+    _fetchUserRole();
+    if (widget.checklistToEdit != null) {
+      _populateFields(widget.checklistToEdit!);
+    }
   }
 
   Future<void> _fetchUserRole() async {
     try {
-      // Assuming AuthService provides the role; adjust based on your actual auth setup
       String? userId = AuthService.getLoggedInUserId();
       if (userId != null) {
-        // Replace with actual role-fetching logic if separate from ID
-        // This is a placeholder; your app might fetch role differently
-        currentUserRole =
-            "Manager"; // Simulate manager for testing; replace with real fetch
+        currentUserRole = AuthService.getRole();
         print("🛠️ Current user role in AddChecklistDialog: $currentUserRole");
       } else {
         currentUserRole = "Unknown";
@@ -83,6 +88,33 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
     }
   }
 
+  Future<void> _populateFields(Map<String, dynamic> checklist) async {
+    titleController.text = checklist['title'] ?? '';
+    descriptionController.text = checklist['description'] ?? '';
+    selectedShift = checklist['shift'] ?? shifts[0];
+    selectedArea = checklist['area'] ?? areas[0];
+    startTime = DateTime.parse(checklist['start_time']);
+    endTime = DateTime.parse(checklist['end_time']);
+    repeatDaily = checklist['repeat_daily'] ?? false;
+
+    final repeatDays = List<String>.from(checklist['repeat_days'] ?? []);
+    for (var day in daysOfWeek) {
+      selectedDays[day] = repeatDays.contains(day);
+    }
+
+    // Fetch existing tasks
+    try {
+      final fetchedTasks =
+          await TasksService.fetchTasksByChecklistId(checklist['id']);
+      setState(() {
+        tasks = fetchedTasks;
+      });
+    } catch (e) {
+      print("❌ Error fetching tasks for checklist ${checklist['id']}: $e");
+      _showSnackBar('Error loading tasks: $e', isError: true);
+    }
+  }
+
   @override
   void dispose() {
     titleController.dispose();
@@ -93,6 +125,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.checklistToEdit != null;
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
@@ -113,7 +146,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Create New Checklist',
+                        isEditing ? 'Edit Checklist' : 'Create New Checklist',
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -122,7 +155,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Set up a new task list (Role: ${currentUserRole ?? "Loading..."})',
+                        'Role: ${currentUserRole ?? "Loading..."}',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -227,7 +260,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
                           runSpacing: 4,
                           children: tasks
                               .map((task) => Chip(
-                                    label: Text(task,
+                                    label: Text(task['name'],
                                         style:
                                             GoogleFonts.poppins(fontSize: 12)),
                                     backgroundColor:
@@ -265,7 +298,7 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
                                   horizontal: 20, vertical: 12),
                             ),
                             child: Text(
-                              'Create',
+                              isEditing ? 'Update' : 'Create',
                               style: GoogleFonts.poppins(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -349,7 +382,8 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
       onTap: () async {
         TimeOfDay? picked = await showTimePicker(
           context: context,
-          initialTime: TimeOfDay.now(),
+          initialTime:
+              time != null ? TimeOfDay.fromDateTime(time) : TimeOfDay.now(),
           builder: (context, child) => Theme(
             data: ThemeData.light().copyWith(
               colorScheme: const ColorScheme.light(primary: Colors.blueAccent),
@@ -408,7 +442,12 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
           onPressed: () {
             if (taskController.text.trim().isNotEmpty) {
               setState(() {
-                tasks.add(taskController.text.trim());
+                tasks.add({
+                  'name': taskController.text.trim(),
+                  'is_complete': false,
+                  'notes': '',
+                  'file': null,
+                });
                 taskController.clear();
               });
             }
@@ -419,7 +458,12 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
       onFieldSubmitted: (value) {
         if (value.trim().isNotEmpty) {
           setState(() {
-            tasks.add(value.trim());
+            tasks.add({
+              'name': value.trim(),
+              'is_complete': false,
+              'notes': '',
+              'file': null,
+            });
             taskController.clear();
           });
         }
@@ -432,16 +476,6 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
         startTime != null &&
         endTime != null &&
         tasks.isNotEmpty) {
-      // Log role before submission
-      print("🛠️ Submitting as role: $currentUserRole");
-      if (currentUserRole != "Manager") {
-        _showSnackBar(
-          'Only managers can create checklists (Role: $currentUserRole)',
-          isError: true,
-        );
-        return;
-      }
-
       setState(() => isSubmitting = true);
       try {
         final selectedDayList = selectedDays.entries
@@ -449,23 +483,45 @@ class AddChecklistDialogState extends State<AddChecklistDialog> {
             .map((entry) => entry.key)
             .toList();
 
-        await ChecklistsService.createChecklist(
-          titleController.text.trim(),
-          descriptionController.text.trim(),
-          selectedShift,
-          startTime!.toIso8601String(),
-          endTime!.toIso8601String(),
-          selectedArea,
-          tasks,
-          repeatDaily: repeatDaily,
-          repeatDays: selectedDayList,
-        );
+        if (widget.checklistToEdit != null) {
+          // Update existing checklist
+          await ChecklistsService.updateChecklist(
+            widget.checklistToEdit!['id'],
+            titleController.text.trim(),
+            descriptionController.text.trim(),
+            selectedShift,
+            startTime!.toIso8601String(),
+            endTime!.toIso8601String(),
+            selectedArea,
+            tasks,
+            repeatDaily: repeatDaily,
+            repeatDays: selectedDayList,
+          );
+          _showSnackBar('Checklist updated successfully', isSuccess: true);
+        } else {
+          // Create new checklist
+          await ChecklistsService.createChecklist(
+            titleController.text.trim(),
+            descriptionController.text.trim(),
+            selectedShift,
+            startTime!.toIso8601String(),
+            endTime!.toIso8601String(),
+            selectedArea,
+            tasks
+                .map((task) => task['name'] as String)
+                .toList(), // Extract names
+            repeatDaily: repeatDaily,
+            repeatDays: selectedDayList,
+          );
+          _showSnackBar('Checklist created successfully', isSuccess: true);
+        }
 
-        _showSnackBar('Checklist created successfully', isSuccess: true);
         widget.onChecklistCreated();
         Navigator.pop(context);
       } catch (e) {
-        _showSnackBar('Error creating checklist: $e', isError: true);
+        _showSnackBar(
+            'Error ${widget.checklistToEdit != null ? 'updating' : 'creating'} checklist: $e',
+            isError: true);
       } finally {
         setState(() => isSubmitting = false);
       }

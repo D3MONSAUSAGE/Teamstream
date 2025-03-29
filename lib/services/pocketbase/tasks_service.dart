@@ -11,25 +11,17 @@ class TasksService {
   static Future<List<Map<String, dynamic>>> fetchTasksByChecklistId(
       String checklistId) async {
     try {
-      List<Map<String, dynamic>> fetchedTasks =
-          await BaseService.fetchAll(collectionName);
-
-      print("📥 Fetched Tasks (Raw): $fetchedTasks");
-
-      List<Map<String, dynamic>> filteredTasks = fetchedTasks
-          .where((task) =>
-              task.containsKey("checklist_id") &&
-              task["checklist_id"] == checklistId)
-          .toList();
-
-      print("✅ Filtered Tasks for Checklist ($checklistId): $filteredTasks");
+      List<Map<String, dynamic>> fetchedTasks = await BaseService.fetchByField(
+        collectionName,
+        "checklist_id",
+        checklistId,
+      );
       print(
-          "🔍 Checklist ID: $checklistId | Tasks Count: ${filteredTasks.length}");
-
-      return filteredTasks;
+          "✅ Fetched ${fetchedTasks.length} tasks for checklist $checklistId: $fetchedTasks");
+      return fetchedTasks;
     } catch (e) {
       print("❌ Error fetching tasks for checklist $checklistId: $e");
-      rethrow; // ✅ Rethrow to allow callers to handle errors
+      rethrow;
     }
   }
 
